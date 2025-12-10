@@ -2,7 +2,13 @@ package com.example.eat_together;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.location.Address;
 import android.location.Geocoder;
 import android.os.Bundle;
@@ -15,6 +21,8 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptor;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 
@@ -82,7 +90,6 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
 
                         // 儲存地點資訊
                         currentPlaceName = location;
-                        // 如果有詳細地址就抓，沒有就用輸入的名稱
                         if(address.getAddressLine(0) != null) {
                             currentPlaceAddress = address.getAddressLine(0);
                         } else {
@@ -90,10 +97,34 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
                         }
 
                         mMap.clear();
-                        mMap.addMarker(new MarkerOptions().position(latLng).title(currentPlaceName));
+
+                        // ▼▼▼▼▼▼▼▼▼▼ 新增：製作自訂圖標 (開始) ▼▼▼▼▼▼▼▼▼▼
+                        // 1. 設定圖標大小
+                        int height = 133;
+                        int width = 80;
+
+                        // 2. 讀取圖片資源
+                        // 注意：請確認 res/drawable 資料夾裡有沒有 'gray' 這張圖
+                        // 如果沒有，請改用 R.drawable.ic_home 或其他存在的圖片
+                        Bitmap b = BitmapFactory.decodeResource(getResources(), R.drawable.gray);
+
+                        // 3. 縮放圖片
+                        Bitmap smallMarker = Bitmap.createScaledBitmap(b, width, height, false);
+
+                        // 4. 轉換成地圖用的格式
+                        BitmapDescriptor smallMarkerIcon = BitmapDescriptorFactory.fromBitmap(smallMarker);
+                        // ▲▲▲▲▲▲▲▲▲▲ 新增：製作自訂圖標 (結束) ▲▲▲▲▲▲▲▲▲▲
+
+
+                        // ▼▼▼▼▼▼▼▼▼▼ 修改：加入 .icon(smallMarkerIcon) ▼▼▼▼▼▼▼▼▼▼
+                        mMap.addMarker(new MarkerOptions()
+                                .position(latLng)
+                                .title(currentPlaceName)
+                                .icon(smallMarkerIcon)); // ★ 這裡設定圖標
+                        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+
                         mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 16));
 
-                        // ★★★ 搜尋成功，顯示按鈕 ★★★
                         btnConfirm.setVisibility(View.VISIBLE);
 
                     } else {
@@ -114,6 +145,26 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
     @Override
     public void onMapReady(@NonNull GoogleMap googleMap) {
         mMap = googleMap;
+
+        // ... (原本的權限檢查) ...
+        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+                ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+
+        mMap.setMyLocationEnabled(true);
+
+        // ... (原本的 UI 設定) ...
+        mMap.getUiSettings().setZoomControlsEnabled(true);
+        mMap.getUiSettings().setCompassEnabled(true);
+
+        // ▼▼▼▼▼▼▼▼▼▼ 新增這行：設定地圖內縮 ▼▼▼▼▼▼▼▼▼▼
+        // 參數順序：左, 上, 右, 下 (單位是像素 pixel)
+        // 設定上方 (Top) 內縮 200 像素，把按鈕擠下來，避開搜尋框
+        mMap.setPadding(0, 200, 0, 0);
+        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+
+        // ... (原本的移動鏡頭) ...
         LatLng taiwan = new LatLng(23.6978, 120.9605);
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(taiwan, 7));
     }
