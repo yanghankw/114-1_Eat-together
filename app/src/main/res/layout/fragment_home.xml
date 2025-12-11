@@ -68,6 +68,6 @@
         android:background="#E0E0E0"
         android:gravity="center"
         android:text="暫無紀錄"
-        android:textColor="#666666"/>
+        android:textColor="#666666" />
 
 </LinearLayout>
