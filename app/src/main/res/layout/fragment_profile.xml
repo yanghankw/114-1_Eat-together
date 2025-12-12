@@ -17,9 +17,9 @@
         android:id="@+id/tv_name"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginBottom="32dp"
         android:text="尚未登入"
-        android:textSize="20sp"
-        android:layout_marginBottom="32dp"/>
+        android:textSize="20sp" />
 
     <com.google.android.gms.common.SignInButton
         android:id="@+id/sign_in_button"

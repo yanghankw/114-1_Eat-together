@@ -37,6 +37,13 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         setContentView(R.layout.activity_map);
 
         searchView = findViewById(R.id.sv_location);
+        // --- 加入這段程式碼來移除底線 ---
+        int plateId = searchView.getContext().getResources().getIdentifier("android:id/search_plate", null, null);
+        View plate = searchView.findViewById(plateId);
+        if (plate != null) {
+            plate.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+        }
+
         btnConfirm = findViewById(R.id.btn_confirm_location); // 綁定按鈕
 
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
