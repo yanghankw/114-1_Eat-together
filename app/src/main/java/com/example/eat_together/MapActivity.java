@@ -12,6 +12,7 @@ import android.graphics.BitmapFactory;
 import android.location.Address;
 import android.location.Geocoder;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.SearchView;
@@ -25,9 +26,16 @@ import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.libraries.places.api.Places;
+import com.google.android.libraries.places.api.model.CircularBounds;
+import com.google.android.libraries.places.api.model.Place;
+import com.google.android.libraries.places.api.net.PlacesClient;
+import com.google.android.libraries.places.api.net.SearchByTextRequest;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Arrays;
 
 public class MapActivity extends AppCompatActivity implements OnMapReadyCallback {
 
@@ -39,10 +47,29 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
     private String currentPlaceName = "";
     private String currentPlaceAddress = "";
 
+    // ... 原本的變數 ...
+    private PlacesClient placesClient; // 定義 Places 客戶端
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_map);
+
+        // 1. 初始化 Places SDK (請務必確認 AndroidManifest 裡有填 API Key)
+        if (!Places.isInitialized()) {
+            // 這裡填入您的 API KEY，建議直接讀取 Manifest 裡的，或者暫時貼字串
+            // 為了安全，建議用 BuildConfig 或讀取 Manifest，這裡示範用字串：
+            Places.initialize(getApplicationContext(), "AIzaSyCodnZMV_6vZGoj84AQ-52EUuKcLS4SiO0");
+        }
+        placesClient = Places.createClient(this);
+
+        // ... 原本的 findViewById ...
+        FloatingActionButton btnSearchNearby = findViewById(R.id.btn_search_nearby);
+
+        // 2. 設定按鈕點擊事件
+        btnSearchNearby.setOnClickListener(v -> {
+            searchNearbyRestaurants();
+        });
 
         searchView = findViewById(R.id.sv_location);
         btnConfirm = findViewById(R.id.btn_confirm_location); // 綁定按鈕
@@ -142,6 +169,60 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         });
     }
 
+    // ★★★ 核心功能：搜尋目前鏡頭附近的餐廳 ★★★
+    private void searchNearbyRestaurants() {
+        if (mMap == null) return;
+
+        // 1. 取得地圖目前的中心點
+        LatLng center = mMap.getCameraPosition().target;
+
+        // 2. 定義要回傳哪些資料 (名字、座標、地址、評分、ID)
+        List<Place.Field> placeFields = Arrays.asList(
+                Place.Field.ID,
+                Place.Field.NAME,
+                Place.Field.LAT_LNG,
+                Place.Field.ADDRESS,
+                Place.Field.RATING); // 加上評分
+
+        // 3. 設定搜尋半徑 (例如 1000 公尺)
+        CircularBounds circle = CircularBounds.newInstance(center, 1000.0);
+
+        // 4. 建立搜尋請求 (搜尋關鍵字：Restaurant)
+        SearchByTextRequest searchRequest = SearchByTextRequest.builder("Restaurant", placeFields)
+                .setMaxResultCount(10) // 限制只抓 10 間，省流量
+                .setLocationBias(circle) // 偏好搜尋圓圈範圍內
+                .build();
+
+        // 5. 發送請求
+        placesClient.searchByText(searchRequest).addOnSuccessListener(response -> {
+            mMap.clear(); // 清除舊標記
+
+            for (Place place : response.getPlaces()) {
+                LatLng latLng = place.getLatLng();
+                String name = place.getName();
+                String address = place.getAddress();
+                Double rating = place.getRating();
+
+                // 處理評分顯示
+                String snippet = "評分: " + (rating != null ? rating : "無") + " / " + address;
+
+                if (latLng != null) {
+                    mMap.addMarker(new MarkerOptions()
+                            .position(latLng)
+                            .title(name)
+                            .snippet(snippet)); // 點擊標記會顯示評分和地址
+                }
+            }
+
+            // 提示使用者
+            Toast.makeText(MapActivity.this, "找到附近 " + response.getPlaces().size() + " 間餐廳", Toast.LENGTH_SHORT).show();
+
+        }).addOnFailureListener(exception -> {
+            Log.e("MapActivity", "Place not found: " + exception.getMessage());
+            Toast.makeText(MapActivity.this, "搜尋失敗，請檢查 API Key 權限", Toast.LENGTH_SHORT).show();
+        });
+    }
+
     @Override
     public void onMapReady(@NonNull GoogleMap googleMap) {
         mMap = googleMap;
@@ -167,5 +248,19 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         // ... (原本的移動鏡頭) ...
         LatLng taiwan = new LatLng(23.6978, 120.9605);
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(taiwan, 7));
+
+        // 加入標記點擊監聽
+        mMap.setOnMarkerClickListener(marker -> {
+            // 當使用者點擊某個餐廳標記時
+            currentPlaceName = marker.getTitle();
+            currentPlaceAddress = marker.getSnippet(); // 這裡可能會包含評分文字，您可以自行處理字串切割
+
+            // 顯示確認按鈕
+            btnConfirm.setVisibility(View.VISIBLE);
+
+            // 顯示資訊視窗 (就是那個小白框)
+            marker.showInfoWindow();
+            return true; // 回傳 true 代表我們自己處理了點擊，地圖不用再預設動作
+        });
     }
 }

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
@@ -19,15 +20,28 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/btn_search_nearby"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentEnd="true"
+        android:layout_margin="20dp"
+        android:src="@android:drawable/ic_menu_search"
+        android:backgroundTint="#FF9800"
+        app:tint="#FFFFFF"
+        android:contentDescription="搜尋附近餐廳" />
+
     <Button
         android:id="@+id/btn_confirm_location"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
         android:layout_margin="20dp"
+        android:layout_marginEnd="90dp"
         android:backgroundTint="#4CAF50"
-        android:padding="16dp"
-        android:text="傳送此地點給朋友"
-        android:textColor="#FFFFFF"
-        android:textSize="18sp"
-        android:visibility="gone" /> </RelativeLayout>
+        android:text="傳送此地點"
+        android:visibility="gone" />
+
+</RelativeLayout>
+
