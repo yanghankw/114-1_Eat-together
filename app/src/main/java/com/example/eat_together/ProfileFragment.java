@@ -7,7 +7,10 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -27,96 +30,165 @@ import com.google.android.gms.tasks.Task;
 
 public class ProfileFragment extends Fragment {
 
+    // Google Sign In
     private GoogleSignInClient mGoogleSignInClient;
-    private SignInButton signInButton;
-    private Button signOutButton;
-    private TextView tvName;
-    private ImageView ivProfile;
-
-    // 定義登入結果的處理器
     private final ActivityResultLauncher<Intent> signInLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
-                if (result.getResultCode() == -1) { // -1 代表 RESULT_OK
+                if (result.getResultCode() == -1) {
                     Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(result.getData());
-                    handleSignInResult(task);
+                    handleGoogleSignInResult(task);
                 }
             }
     );
+
+    // UI 元件 - 登入表單
+    private EditText etEmail, etPassword;
+    private Button btnEmailLogin;
+    private SignInButton btnGoogleSignIn;
+
+    // UI 元件 - 個人資料
+    private ImageView ivProfile;
+    private TextView tvName, tvEmail, tvBio;
+
+
+    // 修改容器變數類型
+    private LinearLayout layoutLogin;   // 未登入畫面
+    private ScrollView layoutProfile;   // 已登入畫面 (改成 ScrollView)
+
+    // 新增綁定
+    private TextView btnLogoutIcon;
+    private TextView btnSettings;
 
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_profile, container, false);
 
-        signInButton = view.findViewById(R.id.sign_in_button);
-        signOutButton = view.findViewById(R.id.btn_sign_out);
-        tvName = view.findViewById(R.id.tv_name);
-        ivProfile = view.findViewById(R.id.iv_profile_pic);
+        // 1. 綁定元件
+        initViews(view);
 
-        // 1. 設定 Google 登入選項
+        // 2. 設定 Google 登入選項
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                .requestEmail() // 要求取得 Email
+                .requestEmail()
                 .build();
-
-        // 2. 建立 GoogleSignInClient
         mGoogleSignInClient = GoogleSignIn.getClient(requireActivity(), gso);
 
-        // 3. 設定按鈕點擊事件
-        signInButton.setOnClickListener(v -> signIn());
-        signOutButton.setOnClickListener(v -> signOut());
+        // 3. 設定按鈕事件
+        btnGoogleSignIn.setOnClickListener(v -> googleSignIn());
 
-        // 設定按鈕樣式
-        signInButton.setSize(SignInButton.SIZE_STANDARD);
+        btnEmailLogin.setOnClickListener(v -> emailLogin());
+
+        // 4. 設定個性簽名點擊事件 (模擬編輯功能)
+        tvBio.setOnClickListener(v -> {
+            Toast.makeText(getContext(), "未來可在此編輯個性簽名", Toast.LENGTH_SHORT).show();
+        });
+
+        // 修改登出按鈕事件 (綁定到右上角圖示 或 設定按鈕)
+        btnLogoutIcon.setOnClickListener(v -> signOut());
 
         return view;
+    }
+
+    private void initViews(View view) {
+        layoutLogin = view.findViewById(R.id.layout_login);
+        layoutProfile = view.findViewById(R.id.layout_profile);
+
+        etEmail = view.findViewById(R.id.et_email);
+        etPassword = view.findViewById(R.id.et_password);
+        btnEmailLogin = view.findViewById(R.id.btn_email_login);
+        btnGoogleSignIn = view.findViewById(R.id.sign_in_button);
+        btnGoogleSignIn.setSize(SignInButton.SIZE_WIDE); // 改成寬版按鈕比較好看
+
+        // 綁定新的 Profile 介面元件
+        ivProfile = view.findViewById(R.id.iv_profile_pic);
+        tvName = view.findViewById(R.id.tv_name);
+        tvEmail = view.findViewById(R.id.tv_email);
+        tvBio = view.findViewById(R.id.tv_bio);
+
+        btnLogoutIcon = view.findViewById(R.id.btn_logout_icon);
+        btnSettings = view.findViewById(R.id.btn_settings);
     }
 
     @Override
     public void onStart() {
         super.onStart();
-        // 檢查使用者是否已經登入過
+        // 檢查是否已經有 Google 登入紀錄
         GoogleSignInAccount account = GoogleSignIn.getLastSignedInAccount(requireContext());
         updateUI(account);
     }
 
-    private void signIn() {
+    // --- 功能實作區 ---
+
+    // 1. Email 登入邏輯
+    private void emailLogin() {
+        String email = etEmail.getText().toString().trim();
+        String password = etPassword.getText().toString().trim();
+
+        if (email.isEmpty() || password.isEmpty()) {
+            Toast.makeText(getContext(), "請輸入 Email 和密碼", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // TODO: 未來這裡要連線到您的 TCP Server 進行驗證
+        // 目前先做一個「假登入」效果
+        Toast.makeText(getContext(), "登入成功 (模擬)", Toast.LENGTH_SHORT).show();
+
+        // 手動切換 UI 到「已登入」狀態，並填入輸入的資料
+        layoutLogin.setVisibility(View.GONE);
+        layoutProfile.setVisibility(View.VISIBLE);
+        tvName.setText("一般使用者");
+        tvEmail.setText(email);
+        tvBio.setText("我是一個快樂的吃貨！");
+    }
+
+    // 2. Google 登入邏輯
+    private void googleSignIn() {
         Intent signInIntent = mGoogleSignInClient.getSignInIntent();
         signInLauncher.launch(signInIntent);
     }
 
-    private void signOut() {
-        mGoogleSignInClient.signOut()
-                .addOnCompleteListener(requireActivity(), task -> updateUI(null));
-    }
-
-    private void handleSignInResult(Task<GoogleSignInAccount> completedTask) {
+    private void handleGoogleSignInResult(Task<GoogleSignInAccount> completedTask) {
         try {
             GoogleSignInAccount account = completedTask.getResult(ApiException.class);
-            // 登入成功，更新 UI
-            updateUI(account);
+            updateUI(account); // 登入成功
         } catch (ApiException e) {
-            // 登入失敗
             Log.w("GoogleSignIn", "signInResult:failed code=" + e.getStatusCode());
             updateUI(null);
-            Toast.makeText(getContext(), "登入失敗", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getContext(), "Google 登入失敗", Toast.LENGTH_SHORT).show();
         }
     }
 
+    // 3. 登出邏輯
+    private void signOut() {
+        // 如果是 Google 登入，需要呼叫 Google 的登出
+        mGoogleSignInClient.signOut().addOnCompleteListener(requireActivity(), task -> {
+            // 清除 UI
+            updateUI(null);
+
+            // 也要清空輸入框
+            etEmail.setText("");
+            etPassword.setText("");
+            Toast.makeText(getContext(), "已登出", Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    // 4. UI 狀態切換 (核心邏輯)
     private void updateUI(GoogleSignInAccount account) {
         if (account != null) {
-            // 已登入狀態
-            tvName.setText("歡迎, " + account.getDisplayName());
-            signInButton.setVisibility(View.GONE);
-            signOutButton.setVisibility(View.VISIBLE);
+            // === 已登入 (Google) ===
+            layoutLogin.setVisibility(View.GONE);
+            layoutProfile.setVisibility(View.VISIBLE);
 
-            // 這裡可以獲取更多資訊，例如 account.getEmail(), account.getId()
-            // 未來可以把這些資訊傳給您的 TCP Server
+            tvName.setText(account.getDisplayName());
+            tvEmail.setText(account.getEmail());
+            // 如果有頭像 URL，未來可以用 Glide 載入，目前先用預設圖
+            // ivProfile.setImageURI(account.getPhotoUrl());
+
         } else {
-            // 未登入狀態
-            tvName.setText("尚未登入");
-            signInButton.setVisibility(View.VISIBLE);
-            signOutButton.setVisibility(View.GONE);
+            // === 未登入 ===
+            layoutLogin.setVisibility(View.VISIBLE);
+            layoutProfile.setVisibility(View.GONE);
         }
     }
 }
