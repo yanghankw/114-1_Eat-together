@@ -37,6 +37,14 @@
             android:text="今天想吃火鍋..."
             android:textSize="14sp"
             android:textColor="#888888"/>
+
+        <!-- ★ 加入底線分隔線 -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#E0E0E0"
+            android:layout_marginTop="16dp" />
     </LinearLayout>
+
 
 </LinearLayout>

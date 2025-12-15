@@ -55,24 +55,30 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_map);
 
-        // 1. 初始化 Places SDK (請務必確認 AndroidManifest 裡有填 API Key)
+        // 1. 初始化 Places SDK
         if (!Places.isInitialized()) {
-            // 這裡填入您的 API KEY，建議直接讀取 Manifest 裡的，或者暫時貼字串
-            // 為了安全，建議用 BuildConfig 或讀取 Manifest，這裡示範用字串：
             Places.initialize(getApplicationContext(), "AIzaSyCodnZMV_6vZGoj84AQ-52EUuKcLS4SiO0");
         }
         placesClient = Places.createClient(this);
 
-        // ... 原本的 findViewById ...
+        // ★ 先綁定 SearchView (移到最前面)
+        searchView = findViewById(R.id.sv_location);
+        btnConfirm = findViewById(R.id.btn_confirm_location);
         FloatingActionButton btnSearchNearby = findViewById(R.id.btn_search_nearby);
 
-        // 2. 設定按鈕點擊事件
+        // --- 移除 SearchView 底線的程式碼 (放在綁定之後)
+        int plateId = searchView.getContext().getResources().getIdentifier("android:id/search_plate", null, null);
+        if (plateId != 0) {
+            View plateView = searchView.findViewById(plateId);
+            if (plateView != null) {
+                plateView.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+            }
+        }
+        // ------------------------------------
+
         btnSearchNearby.setOnClickListener(v -> {
             searchNearbyRestaurants();
         });
-
-        searchView = findViewById(R.id.sv_location);
-        btnConfirm = findViewById(R.id.btn_confirm_location); // 綁定按鈕
 
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
@@ -80,20 +86,13 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
             mapFragment.getMapAsync(this);
         }
 
-        // --- 按鈕點擊事件 ---
         btnConfirm.setOnClickListener(v -> {
-            // 準備跳轉到 ChatActivity
             Intent intent = new Intent(MapActivity.this, ChatActivity.class);
-
-            // 放入資料 (Key, Value)
             intent.putExtra("PLACE_NAME", currentPlaceName);
             intent.putExtra("PLACE_ADDRESS", currentPlaceAddress);
-
-            // 為了測試方便，我們先假定傳給一個預設的群組名稱
             intent.putExtra("CHAT_NAME", "美食討論群");
-
             startActivity(intent);
-            finish(); // 結束地圖頁面，這樣按返回鍵不會又回到地圖
+            finish();
         });
 
         // --- 搜尋監聽器 ---
