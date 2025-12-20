@@ -40,7 +40,7 @@ public class FriendsFragment extends Fragment {
         // 設定列表呈現方式：垂直條列式
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
 
-        // 產生假資料 (未來這些資料會從您的 TCP Server 抓取)
+        // 產生假資料 (這是目前的預設畫面，之後 Server 回傳資料後可以清空這裡再 add)
         friendList = new ArrayList<>();
         friendList.add(new Friend("王小明", "想吃燒肉", R.drawable.ic_person));
         friendList.add(new Friend("陳小美", "減肥中...", R.drawable.ic_person));
@@ -50,6 +50,14 @@ public class FriendsFragment extends Fragment {
         // 綁定 Adapter
         adapter = new FriendsAdapter(friendList);
         recyclerView.setAdapter(adapter);
+
+        // ==========================================
+        // 🔥 關鍵新增：一開啟這個頁面，就跟 Server 要最新的好友名單
+        // ==========================================
+        // 指令格式範例: GET_FRIENDS
+        // (如果有 User ID，通常會寫 GET_FRIENDS:1，這裡先簡化)
+        TcpClient.getInstance().sendMessage("GET_FRIENDS");
+        // ==========================================
 
         return view;
     }

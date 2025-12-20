@@ -41,21 +41,23 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
 
     private GoogleMap mMap;
     private SearchView searchView;
-    private Button btnConfirm; // 新增按鈕變數
+    private Button btnConfirm;
 
-    // 暫存搜尋到的地點資訊
     private String currentPlaceName = "";
     private String currentPlaceAddress = "";
 
-    // ... 原本的變數 ...
-    private PlacesClient placesClient; // 定義 Places 客戶端
+    private PlacesClient placesClient;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_map);
 
-        // 1. 初始化 Places SDK
+        // ★ 修改 1: 一進畫面就先嘗試連線 TCP Server
+        // 這樣等到使用者選好餐廳按按鈕時，連線通常已經準備好了
+        TcpClient.getInstance().connect();
+
+        // 初始化 Places SDK
         if (!Places.isInitialized()) {
             Places.initialize(getApplicationContext(), "AIzaSyCodnZMV_6vZGoj84AQ-52EUuKcLS4SiO0");
         }
@@ -86,7 +88,20 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
             mapFragment.getMapAsync(this);
         }
 
+        // --- 確認按鈕 ---
         btnConfirm.setOnClickListener(v -> {
+            if (currentPlaceName.isEmpty()) {
+                Toast.makeText(this, "請先選擇一個地點", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // 發送 TCP 指令
+            String msg = "NEW_EVENT:" + currentPlaceName + ":" + currentPlaceAddress;
+            TcpClient.getInstance().sendMessage(msg);
+
+            Toast.makeText(this, "已發送活動通知！", Toast.LENGTH_SHORT).show();
+
+            // 跳轉到聊天室
             Intent intent = new Intent(MapActivity.this, ChatActivity.class);
             intent.putExtra("PLACE_NAME", currentPlaceName);
             intent.putExtra("PLACE_ADDRESS", currentPlaceAddress);
@@ -95,14 +110,14 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
             finish();
         });
 
-        // --- 搜尋監聽器 ---
+        // --- 搜尋框邏輯 (簡化版) ---
         searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             @Override
             public boolean onQueryTextSubmit(String query) {
                 String location = searchView.getQuery().toString();
                 List<Address> addressList = null;
 
-                if (location != null || !location.equals("")) {
+                if (location != null && !location.equals("")) {
                     Geocoder geocoder = new Geocoder(MapActivity.this);
                     try {
                         addressList = geocoder.getFromLocationName(location, 1);
@@ -114,152 +129,83 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
                         Address address = addressList.get(0);
                         LatLng latLng = new LatLng(address.getLatitude(), address.getLongitude());
 
-                        // 儲存地點資訊
                         currentPlaceName = location;
-                        if(address.getAddressLine(0) != null) {
-                            currentPlaceAddress = address.getAddressLine(0);
-                        } else {
-                            currentPlaceAddress = location;
-                        }
+                        currentPlaceAddress = (address.getAddressLine(0) != null) ? address.getAddressLine(0) : location;
 
                         mMap.clear();
-
-                        // ▼▼▼▼▼▼▼▼▼▼ 新增：製作自訂圖標 (開始) ▼▼▼▼▼▼▼▼▼▼
-                        // 1. 設定圖標大小
-                        int height = 133;
-                        int width = 80;
-
-                        // 2. 讀取圖片資源
-                        // 注意：請確認 res/drawable 資料夾裡有沒有 'gray' 這張圖
-                        // 如果沒有，請改用 R.drawable.ic_home 或其他存在的圖片
-                        Bitmap b = BitmapFactory.decodeResource(getResources(), R.drawable.gray);
-
-                        // 3. 縮放圖片
-                        Bitmap smallMarker = Bitmap.createScaledBitmap(b, width, height, false);
-
-                        // 4. 轉換成地圖用的格式
-                        BitmapDescriptor smallMarkerIcon = BitmapDescriptorFactory.fromBitmap(smallMarker);
-                        // ▲▲▲▲▲▲▲▲▲▲ 新增：製作自訂圖標 (結束) ▲▲▲▲▲▲▲▲▲▲
-
-
-                        // ▼▼▼▼▼▼▼▼▼▼ 修改：加入 .icon(smallMarkerIcon) ▼▼▼▼▼▼▼▼▼▼
-                        mMap.addMarker(new MarkerOptions()
-                                .position(latLng)
-                                .title(currentPlaceName)
-                                .icon(smallMarkerIcon)); // ★ 這裡設定圖標
-                        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
-
+                        mMap.addMarker(new MarkerOptions().position(latLng).title(currentPlaceName));
                         mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 16));
-
                         btnConfirm.setVisibility(View.VISIBLE);
-
                     } else {
                         Toast.makeText(MapActivity.this, "找不到地點", Toast.LENGTH_SHORT).show();
-                        btnConfirm.setVisibility(View.GONE);
                     }
                 }
                 return false;
             }
 
             @Override
-            public boolean onQueryTextChange(String newText) {
-                return false;
-            }
+            public boolean onQueryTextChange(String newText) { return false; }
         });
     }
 
-    // ★★★ 核心功能：搜尋目前鏡頭附近的餐廳 ★★★
     private void searchNearbyRestaurants() {
         if (mMap == null) return;
-
-        // 1. 取得地圖目前的中心點
         LatLng center = mMap.getCameraPosition().target;
 
-        // 2. 定義要回傳哪些資料 (名字、座標、地址、評分、ID)
-        List<Place.Field> placeFields = Arrays.asList(
-                Place.Field.ID,
-                Place.Field.NAME,
-                Place.Field.LAT_LNG,
-                Place.Field.ADDRESS,
-                Place.Field.RATING); // 加上評分
-
-        // 3. 設定搜尋半徑 (例如 1000 公尺)
+        List<Place.Field> placeFields = Arrays.asList(Place.Field.NAME, Place.Field.LAT_LNG, Place.Field.ADDRESS, Place.Field.RATING);
         CircularBounds circle = CircularBounds.newInstance(center, 1000.0);
-
-        // 4. 建立搜尋請求 (搜尋關鍵字：Restaurant)
         SearchByTextRequest searchRequest = SearchByTextRequest.builder("Restaurant", placeFields)
-                .setMaxResultCount(10) // 限制只抓 10 間，省流量
-                .setLocationBias(circle) // 偏好搜尋圓圈範圍內
+                .setMaxResultCount(10)
+                .setLocationBias(circle)
                 .build();
 
-        // 5. 發送請求
         placesClient.searchByText(searchRequest).addOnSuccessListener(response -> {
-            mMap.clear(); // 清除舊標記
-
+            mMap.clear();
             for (Place place : response.getPlaces()) {
                 LatLng latLng = place.getLatLng();
-                String name = place.getName();
-                String address = place.getAddress();
-                Double rating = place.getRating();
+                if (latLng == null) continue;
 
-                // 處理評分顯示
-                String snippet = "評分: " + (rating != null ? rating : "無") + " / " + address;
+                String snippet = "評分: " + (place.getRating() != null ? place.getRating() : "無");
 
-                if (latLng != null) {
-                    mMap.addMarker(new MarkerOptions()
-                            .position(latLng)
-                            .title(name)
-                            .snippet(snippet)); // 點擊標記會顯示評分和地址
+                // ★ 修改 2: 安全的圖片讀取，防止 gray 不存在導致閃退
+                BitmapDescriptor icon = BitmapDescriptorFactory.defaultMarker(); // 預設用紅點
+                try {
+                    Bitmap b = BitmapFactory.decodeResource(getResources(), R.drawable.gray);
+                    if (b != null) { // 檢查圖片是否讀取成功
+                        Bitmap smallMarker = Bitmap.createScaledBitmap(b, 80, 133, false);
+                        icon = BitmapDescriptorFactory.fromBitmap(smallMarker);
+                    }
+                } catch (Exception e) {
+                    // 圖片讀取失敗不做事，直接用紅點
                 }
+
+                mMap.addMarker(new MarkerOptions()
+                        .position(latLng)
+                        .title(place.getName())
+                        .snippet(snippet)
+                        .icon(icon));
             }
-
-            // 提示使用者
-            Toast.makeText(MapActivity.this, "找到附近 " + response.getPlaces().size() + " 間餐廳", Toast.LENGTH_SHORT).show();
-
-        }).addOnFailureListener(exception -> {
-            Log.e("MapActivity", "Place not found: " + exception.getMessage());
-            Toast.makeText(MapActivity.this, "搜尋失敗，請檢查 API Key 權限", Toast.LENGTH_SHORT).show();
-        });
+        }).addOnFailureListener(e -> Log.e("Map", "Search failed: " + e.getMessage()));
     }
 
     @Override
     public void onMapReady(@NonNull GoogleMap googleMap) {
         mMap = googleMap;
 
-        // ... (原本的權限檢查) ...
-        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
-                ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            return;
+        // 簡單權限檢查
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            mMap.setMyLocationEnabled(true);
         }
 
-        mMap.setMyLocationEnabled(true);
-
-        // ... (原本的 UI 設定) ...
         mMap.getUiSettings().setZoomControlsEnabled(true);
-        mMap.getUiSettings().setCompassEnabled(true);
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(23.6978, 120.9605), 7));
 
-        // ▼▼▼▼▼▼▼▼▼▼ 新增這行：設定地圖內縮 ▼▼▼▼▼▼▼▼▼▼
-        // 參數順序：左, 上, 右, 下 (單位是像素 pixel)
-        // 設定上方 (Top) 內縮 200 像素，把按鈕擠下來，避開搜尋框
-        mMap.setPadding(0, 200, 0, 0);
-        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
-
-        // ... (原本的移動鏡頭) ...
-        LatLng taiwan = new LatLng(23.6978, 120.9605);
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(taiwan, 7));
-
-        // 加入標記點擊監聽
         mMap.setOnMarkerClickListener(marker -> {
-            // 當使用者點擊某個餐廳標記時
             currentPlaceName = marker.getTitle();
-            currentPlaceAddress = marker.getSnippet(); // 這裡可能會包含評分文字，您可以自行處理字串切割
-
-            // 顯示確認按鈕
+            currentPlaceAddress = marker.getSnippet();
             btnConfirm.setVisibility(View.VISIBLE);
-
-            // 顯示資訊視窗 (就是那個小白框)
             marker.showInfoWindow();
-            return true; // 回傳 true 代表我們自己處理了點擊，地圖不用再預設動作
+            return true;
         });
     }
 }
