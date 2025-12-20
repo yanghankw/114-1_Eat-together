@@ -8,31 +8,49 @@
         android:id="@+id/sv_location"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
+        android:layout_marginTop="10dp"
         android:layout_marginStart="10dp"
         android:layout_marginEnd="10dp"
         android:background="@drawable/searchview_background"
-        android:elevation="4dp"
+        android:elevation="1dp"
         android:iconifiedByDefault="false"
         android:queryHint="搜尋餐廳" />
 
-    <fragment
-        android:id="@+id/map"
-        android:name="com.google.android.gms.maps.SupportMapFragment"
+    <FrameLayout
+        android:id="@+id/map_container"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        android:layout_below="@+id/sv_location"
+        android:layout_marginTop="10dp"
+        android:layout_marginEnd="10dp"
+        android:layout_marginStart="10dp"
+        android:layout_marginBottom="20dp"
+        android:background="@drawable/rounded_map_background"
+        android:clipToOutline="true"
+        android:elevation="2dp">
+
+        <fragment
+            android:id="@+id/map"
+            android:name="com.google.android.gms.maps.SupportMapFragment"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+    </FrameLayout>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/btn_search_nearby"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
         android:layout_alignParentEnd="true"
-        android:layout_margin="20dp"
-        android:src="@android:drawable/ic_menu_search"
+        android:layout_alignParentBottom="true"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="20dp"
+        android:layout_marginEnd="20dp"
+        android:layout_marginBottom="130dp"
         android:backgroundTint="#FF9800"
-        app:tint="#FFFFFF"
-        android:contentDescription="搜尋附近餐廳" />
+        android:contentDescription="搜尋附近餐廳"
+        android:src="@android:drawable/ic_menu_search"
+        app:tint="#FFFFFF" />
 
     <Button
         android:id="@+id/btn_confirm_location"
