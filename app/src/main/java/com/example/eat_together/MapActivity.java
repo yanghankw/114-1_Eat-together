@@ -15,6 +15,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.LinearLayout;
 import android.widget.SearchView;
 import android.widget.Toast;
 
@@ -67,6 +68,51 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         searchView = findViewById(R.id.sv_location);
         btnConfirm = findViewById(R.id.btn_confirm_location);
         FloatingActionButton btnSearchNearby = findViewById(R.id.btn_search_nearby);
+
+        // 1. 找到元件
+        LinearLayout bottomDrawer = findViewById(R.id.bottom_drawer_container);
+        SearchView svHistory = findViewById(R.id.sv_history);
+
+// 2. 計算 RecyclerView 的高度 (220dp) 轉為像素
+// 這就是我們要隱藏(往下推)的距離
+        final float slideDistance = 230 * getResources().getDisplayMetrics().density;
+
+// ★★★ 關鍵：初始狀態設定 ★★★
+// 把整個容器往下移 slideDistance 的距離
+// 結果：SearchView 留在底部 (因為它是容器的第一個元件)，而下面的 RecyclerView 被推到螢幕外了
+        bottomDrawer.setTranslationY(slideDistance);
+
+// 3. 定義動畫邏輯
+        View.OnClickListener toggleAction = v -> {
+            // 取得目前的位移量
+            float currentTranslation = bottomDrawer.getTranslationY();
+
+            if (currentTranslation > 0) {
+                // 如果目前是縮下去的狀態 -> 往上滑 (顯示列表)
+                // translationY(0) 代表回到 XML 定義的原始位置
+                bottomDrawer.animate().translationY(0).setDuration(300).start();
+                svHistory.setIconified(false); // 展開輸入框
+            } else {
+                // (選用) 如果目前是展開狀態 -> 往下滑 (隱藏列表)
+                // bottomDrawer.animate().translationY(slideDistance).setDuration(300).start();
+            }
+        };
+
+// 4. 綁定點擊事件
+        svHistory.setOnClickListener(toggleAction);
+        svHistory.setOnSearchClickListener(toggleAction); // 點擊放大鏡圖示
+// 點擊輸入框取得焦點時也觸發
+        // 在 onCreate 方法中找到這段
+        svHistory.setOnQueryTextFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                // 如果獲得焦點 -> 展開 (這部分您應該已經有了)
+                if (bottomDrawer.getTranslationY() > 0) {
+                    bottomDrawer.animate().translationY(0).setDuration(300).start();
+                }
+            } else {
+                bottomDrawer.animate().translationY(slideDistance).setDuration(300).start();
+            }
+        });
 
         // --- 移除 SearchView 底線的程式碼 (放在綁定之後)
         int plateId = searchView.getContext().getResources().getIdentifier("android:id/search_plate", null, null);
@@ -206,6 +252,25 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
             btnConfirm.setVisibility(View.VISIBLE);
             marker.showInfoWindow();
             return true;
+        });
+
+        // ★★★ 新增：設定地圖點擊監聽器 ★★★
+        mMap.setOnMapClickListener(latLng -> {
+            // 1. 收回抽屜
+            LinearLayout bottomDrawer = findViewById(R.id.bottom_drawer_container);
+            SearchView svHistory = findViewById(R.id.sv_history);
+            if (bottomDrawer != null) {
+                float slideDistance = 220 * getResources().getDisplayMetrics().density;
+                // 檢查是否已經是收起的狀態，避免重複執行動畫
+                if (bottomDrawer.getTranslationY() == 0) {
+                    bottomDrawer.animate().translationY(slideDistance).setDuration(300).start();
+                }
+            }
+
+            // 2. 清除搜尋框焦點 (這會觸發上面的 onFocusChange，並自動隱藏鍵盤)
+            if (svHistory != null) {
+                svHistory.clearFocus();
+            }
         });
     }
 }
