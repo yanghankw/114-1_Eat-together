@@ -24,6 +24,8 @@
         <activity android:name=".MainActivity"
             android:exported="false" />
 
+        <activity android:name=".RegisterActivity" />
+
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyCodnZMV_6vZGoj84AQ-52EUuKcLS4SiO0" />

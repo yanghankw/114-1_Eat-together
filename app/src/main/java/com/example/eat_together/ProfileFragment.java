@@ -45,6 +45,8 @@ public class ProfileFragment extends Fragment {
     // UI 元件 - 登入表單
     private EditText etEmail, etPassword;
     private Button btnEmailLogin;
+
+    private Button btnGoRegister;
     private SignInButton btnGoogleSignIn;
 
     // UI 元件 - 個人資料
@@ -87,6 +89,14 @@ public class ProfileFragment extends Fragment {
         // 修改登出按鈕事件 (綁定到右上角圖示 或 設定按鈕)
         btnLogoutIcon.setOnClickListener(v -> signOut());
 
+        // 在 onCreateView 裡綁定並設定監聽
+        btnGoRegister = view.findViewById(R.id.btn_go_to_register);
+
+        btnGoRegister.setOnClickListener(v -> {
+            Intent intent = new Intent(getActivity(), RegisterActivity.class);
+            startActivity(intent);
+        });
+
         return view;
     }
 
@@ -121,25 +131,48 @@ public class ProfileFragment extends Fragment {
     // --- 功能實作區 ---
 
     // 1. Email 登入邏輯
+
+    // 修改按鈕點擊事件，讓它變成「註冊/登入」二合一，或是區分開來
+    // 這裡示範：發送註冊指令
+    // 1. Email 登入邏輯
+    // ProfileFragment.java
+
     private void emailLogin() {
         String email = etEmail.getText().toString().trim();
         String password = etPassword.getText().toString().trim();
 
-        if (email.isEmpty() || password.isEmpty()) {
-            Toast.makeText(getContext(), "請輸入 Email 和密碼", Toast.LENGTH_SHORT).show();
-            return;
-        }
+        if (email.isEmpty() || password.isEmpty()) return;
 
-        // TODO: 未來這裡要連線到您的 TCP Server 進行驗證
-        // 目前先做一個「假登入」效果
-        Toast.makeText(getContext(), "登入成功 (模擬)", Toast.LENGTH_SHORT).show();
+        // 顯示登入中...
+        Toast.makeText(getContext(), "登入驗證中...", Toast.LENGTH_SHORT).show();
 
-        // 手動切換 UI 到「已登入」狀態，並填入輸入的資料
-        layoutLogin.setVisibility(View.GONE);
-        layoutProfile.setVisibility(View.VISIBLE);
-        tvName.setText("一般使用者");
-        tvEmail.setText(email);
-        tvBio.setText("我是一個快樂的吃貨！");
+        new Thread(() -> {
+            TcpClient client = TcpClient.getInstance();
+            client.connect(); // 確保連線
+
+            // 1. 組合指令 LOGIN:帳號:密碼
+            String command = "LOGIN:" + email + ":" + password;
+
+            // 2. 發送並等待結果 (使用剛剛寫的新方法)
+            String response = client.sendRequest(command);
+
+            // 3. 回到主執行緒處理 UI
+            getActivity().runOnUiThread(() -> {
+                if (response != null && response.equals("LOGIN_SUCCESS")) {
+                    // === 登入成功 ===
+                    Toast.makeText(getContext(), "登入成功！", Toast.LENGTH_SHORT).show();
+
+                    // 切換畫面
+                    layoutLogin.setVisibility(View.GONE);
+                    layoutProfile.setVisibility(View.VISIBLE);
+                    tvName.setText("TCP 使用者");
+                    tvEmail.setText(email);
+                } else {
+                    // === 登入失敗 ===
+                    Toast.makeText(getContext(), "登入失敗，請檢查帳號密碼", Toast.LENGTH_LONG).show();
+                }
+            });
+        }).start();
     }
 
     // 2. Google 登入邏輯
