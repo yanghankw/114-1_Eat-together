@@ -3,6 +3,8 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
         android:allowBackup="true"
@@ -16,23 +18,26 @@
         <activity
             android:name=".ChatActivity"
             android:exported="false" />
-        <activity
-            android:name=".MapActivity"
+
+        <activity android:name=".MapActivity" />
+
+        <activity android:name=".MainActivity"
             android:exported="false" />
+
+        <activity android:name=".RegisterActivity" />
 
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyCodnZMV_6vZGoj84AQ-52EUuKcLS4SiO0" />
 
-        <activity
-            android:name=".MainActivity"
-            android:exported="true">
+        <activity android:name=".Welcome" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+
     </application>
 
 </manifest>
