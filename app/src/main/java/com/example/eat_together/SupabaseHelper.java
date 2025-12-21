@@ -10,8 +10,12 @@ import okhttp3.Response;
 public class SupabaseHelper {
 
     // ★★★ 請填入您第一步複製的資料 ★★★
-    private static final String SUPABASE_URL = "https://wttrpkzltuesmeofvtal.supabase.co";
-    private static final String SUPABASE_KEY = "sb_publishable_F221TzkGRrNXN6FePJcO1A_ijBU5ip0";
+//    private static final String SUPABASE_URL = "https://wttrpkzltuesmeofvtal.supabase.co";
+//    private static final String SUPABASE_KEY = "sb_publishable_F221TzkGRrNXN6FePJcO1A_ijBU5ip0";
+
+    // cookie url / key
+    private static final String SUPABASE_URL = "https://xkiopgopzmjuatxvnwci.supabase.co";
+    private static final String SUPABASE_KEY = "sb_publishable_pUe70HuQ4n3r4Vq5qlbytg_zJjZlP_3";
 
     private final OkHttpClient client = new OkHttpClient();
     public static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
