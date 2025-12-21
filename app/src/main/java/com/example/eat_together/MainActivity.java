@@ -54,6 +54,8 @@ public class MainActivity extends AppCompatActivity {
                     selectedFragment = new HomeFragment();
                 } else if (itemId == R.id.nav_profile) {
                     selectedFragment = new ProfileFragment();
+                }else if (itemId == R.id.nav_alarm) {
+                    selectedFragment = new AlarmFragment();
                 }
 
                 // 切換 Fragment
