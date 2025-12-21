@@ -122,10 +122,19 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
             }
         });
 
-        // --- 移除 SearchView 底線的程式碼 (放在綁定之後)
+        // --- 移除 SearchView (頂部) 底線的程式碼 ---
         int plateId = searchView.getContext().getResources().getIdentifier("android:id/search_plate", null, null);
         if (plateId != 0) {
             View plateView = searchView.findViewById(plateId);
+            if (plateView != null) {
+                plateView.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+            }
+        }
+        
+        // ★★★ 新增：移除歷史紀錄搜尋框 (svHistory) 的底線 ★★★
+        int historyPlateId = svHistory.getContext().getResources().getIdentifier("android:id/search_plate", null, null);
+        if (historyPlateId != 0) {
+            View plateView = svHistory.findViewById(historyPlateId);
             if (plateView != null) {
                 plateView.setBackgroundColor(android.graphics.Color.TRANSPARENT);
             }
