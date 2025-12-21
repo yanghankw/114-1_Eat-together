@@ -5,6 +5,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
 import android.Manifest;
+import android.animation.ValueAnimator;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -16,6 +17,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
 import android.widget.SearchView;
 import android.widget.Toast;
 
@@ -72,45 +74,51 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         // 1. 找到元件
         LinearLayout bottomDrawer = findViewById(R.id.bottom_drawer_container);
         SearchView svHistory = findViewById(R.id.sv_history);
+        View mapContainer = findViewById(R.id.map_container);
 
-// 2. 計算 RecyclerView 的高度 (220dp) 轉為像素
-// 這就是我們要隱藏(往下推)的距離
+        // 2. 計算 RecyclerView 的高度 (220dp) 轉為像素
+        // 這就是我們要隱藏(往下推)的距離
         final float slideDistance = 230 * getResources().getDisplayMetrics().density;
 
-// ★★★ 關鍵：初始狀態設定 ★★★
-// 把整個容器往下移 slideDistance 的距離
-// 結果：SearchView 留在底部 (因為它是容器的第一個元件)，而下面的 RecyclerView 被推到螢幕外了
-        bottomDrawer.setTranslationY(slideDistance);
+        // ★★★ 關鍵：初始狀態設定 ★★★
+        // 使用 post 確保 Layout 已經渲染完成，能取得 bottomDrawer.getHeight()
+        bottomDrawer.post(() -> {
+            // 預設為收起狀態
+            bottomDrawer.setTranslationY(slideDistance);
 
-// 3. 定義動畫邏輯
+            RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) mapContainer.getLayoutParams();
+            params.bottomMargin = (int) (bottomDrawer.getHeight() - slideDistance);
+            mapContainer.setLayoutParams(params);
+        });
+
+        // 3. 定義動畫邏輯
         View.OnClickListener toggleAction = v -> {
             // 取得目前的位移量
             float currentTranslation = bottomDrawer.getTranslationY();
 
             if (currentTranslation > 0) {
                 // 如果目前是縮下去的狀態 -> 往上滑 (顯示列表)
-                // translationY(0) 代表回到 XML 定義的原始位置
-                bottomDrawer.animate().translationY(0).setDuration(300).start();
+                animateDrawerAndMap(0);
                 svHistory.setIconified(false); // 展開輸入框
             } else {
                 // (選用) 如果目前是展開狀態 -> 往下滑 (隱藏列表)
-                // bottomDrawer.animate().translationY(slideDistance).setDuration(300).start();
+                // animateDrawerAndMap(slideDistance);
             }
         };
 
-// 4. 綁定點擊事件
+        // 4. 綁定點擊事件
         svHistory.setOnClickListener(toggleAction);
         svHistory.setOnSearchClickListener(toggleAction); // 點擊放大鏡圖示
-// 點擊輸入框取得焦點時也觸發
-        // 在 onCreate 方法中找到這段
+        
+        // 點擊輸入框取得焦點時也觸發
+        // --- 監聽搜尋框焦點 ---
         svHistory.setOnQueryTextFocusChangeListener((v, hasFocus) -> {
             if (hasFocus) {
-                // 如果獲得焦點 -> 展開 (這部分您應該已經有了)
-                if (bottomDrawer.getTranslationY() > 0) {
-                    bottomDrawer.animate().translationY(0).setDuration(300).start();
-                }
+                // 展開：位移回到 0
+                animateDrawerAndMap(0);
             } else {
-                bottomDrawer.animate().translationY(slideDistance).setDuration(300).start();
+                // 收起：位移推下 slideDistance
+                animateDrawerAndMap(slideDistance);
             }
         });
 
@@ -194,6 +202,30 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         });
     }
 
+    private void animateDrawerAndMap(float targetTranslationY) {
+        final LinearLayout bottomDrawer = findViewById(R.id.bottom_drawer_container);
+        final View mapContainer = findViewById(R.id.map_container);
+
+        // 取得目前的位移作為起點
+        float startValue = bottomDrawer.getTranslationY();
+
+        ValueAnimator animator = ValueAnimator.ofFloat(startValue, targetTranslationY);
+        animator.setDuration(300); // 300 毫秒的平滑動畫
+        animator.addUpdateListener(animation -> {
+            float animatedValue = (float) animation.getAnimatedValue();
+
+            // 1. 同步移動抽屜的位置 (物理位置不變，繪圖位置改變)
+            bottomDrawer.setTranslationY(animatedValue);
+
+            // 2. 動態調整地圖的 MarginBottom (物理邊界改變)
+            // 地圖底部留白 = 抽屜總高度 - 抽屜下移的位移量
+            RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) mapContainer.getLayoutParams();
+            params.bottomMargin = (int) (bottomDrawer.getHeight() - animatedValue);
+            mapContainer.setLayoutParams(params);
+        });
+        animator.start();
+    }
+
     private void searchNearbyRestaurants() {
         if (mMap == null) return;
         LatLng center = mMap.getCameraPosition().target;
@@ -257,15 +289,7 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         // ★★★ 新增：設定地圖點擊監聽器 ★★★
         mMap.setOnMapClickListener(latLng -> {
             // 1. 收回抽屜
-            LinearLayout bottomDrawer = findViewById(R.id.bottom_drawer_container);
             SearchView svHistory = findViewById(R.id.sv_history);
-            if (bottomDrawer != null) {
-                float slideDistance = 220 * getResources().getDisplayMetrics().density;
-                // 檢查是否已經是收起的狀態，避免重複執行動畫
-                if (bottomDrawer.getTranslationY() == 0) {
-                    bottomDrawer.animate().translationY(slideDistance).setDuration(300).start();
-                }
-            }
 
             // 2. 清除搜尋框焦點 (這會觸發上面的 onFocusChange，並自動隱藏鍵盤)
             if (svHistory != null) {

@@ -2,9 +2,9 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="#F5F5F5">
 
-    <!-- 1. 頂部搜尋框 -->
     <SearchView
         android:id="@+id/sv_location"
         android:layout_width="match_parent"
@@ -13,25 +13,23 @@
         android:layout_marginStart="10dp"
         android:layout_marginEnd="10dp"
         android:background="@drawable/searchview_background"
-        android:elevation="4dp"
+        android:elevation="8dp"
         android:iconifiedByDefault="false"
-        android:queryHint="搜尋餐廳" />
+        android:queryHint="搜尋餐廳"
+        android:translationZ="10dp" />
 
-    <!-- 2. 地圖容器 (讓它佔滿整個畫面，被其他元件蓋在上面) -->
-    <!-- 這樣列表滑上來時，地圖不會變形 -->
     <FrameLayout
         android:id="@+id/map_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_below="@id/sv_location"
-        android:layout_marginBottom="70dp"
         android:layout_marginTop="10dp"
         android:layout_marginHorizontal="10dp"
+        android:layout_marginBottom="70dp"
         android:background="@drawable/rounded_map_background"
         android:clipToOutline="true"
         android:elevation="2dp">
 
-        <!-- 搜尋附近按鈕 -->
         <fragment
             android:id="@+id/map"
             android:name="com.google.android.gms.maps.SupportMapFragment"
@@ -44,13 +42,12 @@
             android:layout_height="wrap_content"
             android:layout_gravity="end|bottom"
             android:layout_marginEnd="10dp"
-            android:layout_marginBottom="110dp"
+            android:layout_marginBottom="105dp"
             android:backgroundTint="#FF9800"
             android:src="@android:drawable/ic_menu_search"
             app:tint="#FFFFFF" />
     </FrameLayout>
 
-    <!-- 確認按鈕 (依照您的需求隱藏或顯示) -->
     <Button
         android:id="@+id/btn_confirm_location"
         android:layout_width="match_parent"
@@ -62,8 +59,6 @@
         android:elevation="10dp"
         android:visibility="gone" />
 
-    <!-- ★ 3. 底部抽屜容器 (包含搜尋框 + 列表) -->
-    <!-- layout_alignParentBottom="true" 讓它黏在底部 -->
     <LinearLayout
         android:id="@+id/bottom_drawer_container"
         android:layout_width="match_parent"
@@ -71,21 +66,18 @@
         android:layout_alignParentBottom="true"
         android:orientation="vertical"
         android:elevation="20dp"
-        android:background="#00FFFFFF"> <!-- 背景透明，讓搜尋框看起來懸浮 -->
+        android:background="@android:color/transparent">
 
-        <!-- 搜尋框 (history) -->
-        <!-- 保持 margin=10dp，這樣就算推下去，它離底部也會有 10dp -->
         <SearchView
             android:id="@+id/sv_history"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_margin="10dp"
             android:background="@drawable/searchview_background"
+            android:elevation="4dp"
             android:iconifiedByDefault="false"
             android:queryHint="搜尋餐廳 (點擊展開)" />
 
-        <!-- 列表 (高度 220dp) -->
-        <!-- 初始時，我們會用 Java 代碼將整個 Layout 往下移 220dp -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/recycler_view_places"
             android:layout_width="match_parent"
@@ -93,8 +85,8 @@
             android:layout_marginStart="10dp"
             android:layout_marginEnd="10dp"
             android:layout_marginBottom="10dp"
-            android:background="@drawable/searchview_background" />
-        <!-- 建議背景設為圓角或白色，視您的設計而定 -->
+            android:background="@drawable/searchview_background"
+            android:elevation="4dp" />
 
     </LinearLayout>
 
