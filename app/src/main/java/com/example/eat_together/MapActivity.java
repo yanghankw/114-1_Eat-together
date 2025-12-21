@@ -5,6 +5,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
 import android.Manifest;
+import android.animation.ValueAnimator;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -15,6 +16,8 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
 import android.widget.SearchView;
 import android.widget.Toast;
 
@@ -58,17 +61,89 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         TcpClient.getInstance().connect();
 
         // 初始化 Places SDK
-        // ⚠️ 記得把下面的 API KEY 換成真的
         if (!Places.isInitialized()) {
             Places.initialize(getApplicationContext(), "AIzaSyCodnZMV_6vZGoj84AQ-52EUuKcLS4SiO0");
         }
         placesClient = Places.createClient(this);
 
-        FloatingActionButton btnSearchNearby = findViewById(R.id.btn_search_nearby);
+        // ★ 先綁定 SearchView (移到最前面)
         searchView = findViewById(R.id.sv_location);
         btnConfirm = findViewById(R.id.btn_confirm_location);
+        FloatingActionButton btnSearchNearby = findViewById(R.id.btn_search_nearby);
 
-        btnSearchNearby.setOnClickListener(v -> searchNearbyRestaurants());
+        // 1. 找到元件
+        LinearLayout bottomDrawer = findViewById(R.id.bottom_drawer_container);
+        SearchView svHistory = findViewById(R.id.sv_history);
+        View mapContainer = findViewById(R.id.map_container);
+
+        // 2. 計算 RecyclerView 的高度 (220dp) 轉為像素
+        // 這就是我們要隱藏(往下推)的距離
+        final float slideDistance = 230 * getResources().getDisplayMetrics().density;
+
+        // ★★★ 關鍵：初始狀態設定 ★★★
+        // 使用 post 確保 Layout 已經渲染完成，能取得 bottomDrawer.getHeight()
+        bottomDrawer.post(() -> {
+            // 預設為收起狀態
+            bottomDrawer.setTranslationY(slideDistance);
+
+            RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) mapContainer.getLayoutParams();
+            params.bottomMargin = (int) (bottomDrawer.getHeight() - slideDistance);
+            mapContainer.setLayoutParams(params);
+        });
+
+        // 3. 定義動畫邏輯
+        View.OnClickListener toggleAction = v -> {
+            // 取得目前的位移量
+            float currentTranslation = bottomDrawer.getTranslationY();
+
+            if (currentTranslation > 0) {
+                // 如果目前是縮下去的狀態 -> 往上滑 (顯示列表)
+                animateDrawerAndMap(0);
+                svHistory.setIconified(false); // 展開輸入框
+            } else {
+                // (選用) 如果目前是展開狀態 -> 往下滑 (隱藏列表)
+                // animateDrawerAndMap(slideDistance);
+            }
+        };
+
+        // 4. 綁定點擊事件
+        svHistory.setOnClickListener(toggleAction);
+        svHistory.setOnSearchClickListener(toggleAction); // 點擊放大鏡圖示
+        
+        // 點擊輸入框取得焦點時也觸發
+        // --- 監聽搜尋框焦點 ---
+        svHistory.setOnQueryTextFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                // 展開：位移回到 0
+                animateDrawerAndMap(0);
+            } else {
+                // 收起：位移推下 slideDistance
+                animateDrawerAndMap(slideDistance);
+            }
+        });
+
+        // --- 移除 SearchView (頂部) 底線的程式碼 ---
+        int plateId = searchView.getContext().getResources().getIdentifier("android:id/search_plate", null, null);
+        if (plateId != 0) {
+            View plateView = searchView.findViewById(plateId);
+            if (plateView != null) {
+                plateView.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+            }
+        }
+        
+        // ★★★ 新增：移除歷史紀錄搜尋框 (svHistory) 的底線 ★★★
+        int historyPlateId = svHistory.getContext().getResources().getIdentifier("android:id/search_plate", null, null);
+        if (historyPlateId != 0) {
+            View plateView = svHistory.findViewById(historyPlateId);
+            if (plateView != null) {
+                plateView.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+            }
+        }
+        // ------------------------------------
+
+        btnSearchNearby.setOnClickListener(v -> {
+            searchNearbyRestaurants();
+        });
 
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
@@ -93,8 +168,9 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
             Intent intent = new Intent(MapActivity.this, ChatActivity.class);
             intent.putExtra("PLACE_NAME", currentPlaceName);
             intent.putExtra("PLACE_ADDRESS", currentPlaceAddress);
+            intent.putExtra("CHAT_NAME", "美食討論群");
             startActivity(intent);
-            // finish(); // 看需求決定要不要關閉地圖
+            finish();
         });
 
         // --- 搜尋框邏輯 (簡化版) ---
@@ -133,6 +209,30 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
             @Override
             public boolean onQueryTextChange(String newText) { return false; }
         });
+    }
+
+    private void animateDrawerAndMap(float targetTranslationY) {
+        final LinearLayout bottomDrawer = findViewById(R.id.bottom_drawer_container);
+        final View mapContainer = findViewById(R.id.map_container);
+
+        // 取得目前的位移作為起點
+        float startValue = bottomDrawer.getTranslationY();
+
+        ValueAnimator animator = ValueAnimator.ofFloat(startValue, targetTranslationY);
+        animator.setDuration(300); // 300 毫秒的平滑動畫
+        animator.addUpdateListener(animation -> {
+            float animatedValue = (float) animation.getAnimatedValue();
+
+            // 1. 同步移動抽屜的位置 (物理位置不變，繪圖位置改變)
+            bottomDrawer.setTranslationY(animatedValue);
+
+            // 2. 動態調整地圖的 MarginBottom (物理邊界改變)
+            // 地圖底部留白 = 抽屜總高度 - 抽屜下移的位移量
+            RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) mapContainer.getLayoutParams();
+            params.bottomMargin = (int) (bottomDrawer.getHeight() - animatedValue);
+            mapContainer.setLayoutParams(params);
+        });
+        animator.start();
     }
 
     private void searchNearbyRestaurants() {
@@ -193,6 +293,17 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
             btnConfirm.setVisibility(View.VISIBLE);
             marker.showInfoWindow();
             return true;
+        });
+
+        // ★★★ 新增：設定地圖點擊監聽器 ★★★
+        mMap.setOnMapClickListener(latLng -> {
+            // 1. 收回抽屜
+            SearchView svHistory = findViewById(R.id.sv_history);
+
+            // 2. 清除搜尋框焦點 (這會觸發上面的 onFocusChange，並自動隱藏鍵盤)
+            if (svHistory != null) {
+                svHistory.clearFocus();
+            }
         });
     }
 }

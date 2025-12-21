@@ -3,6 +3,7 @@ package com.example.eat_together;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
+import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.MenuItem;
@@ -50,8 +51,10 @@ public class MainActivity extends AppCompatActivity {
                 } else if (itemId == R.id.nav_chats) {
                     selectedFragment = new ChatsFragment();
                 } else if (itemId == R.id.nav_home) {
-                    // 這裡通常是你的首頁或地圖頁面的進入點
-                    selectedFragment = new HomeFragment();
+                    // 直接啟動 MapActivity
+                    Intent intent = new Intent(MainActivity.this, MapActivity.class);
+                    startActivity(intent);
+                    return true;
                 } else if (itemId == R.id.nav_profile) {
                     selectedFragment = new ProfileFragment();
                 }else if (itemId == R.id.nav_alarm) {
@@ -68,9 +71,9 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // 預設一開啟 App 顯示「找餐廳(首頁)」
+        // 預設一開啟 App 顯示「好友列表」
         if (savedInstanceState == null) {
-            bottomNav.setSelectedItemId(R.id.nav_home);
+            bottomNav.setSelectedItemId(R.id.nav_friends);
         }
     }
 }

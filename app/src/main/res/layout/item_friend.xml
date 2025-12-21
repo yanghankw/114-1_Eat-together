@@ -8,11 +8,11 @@
 
     <ImageView
         android:id="@+id/iv_friend_avatar"
-        android:layout_width="50dp"
-        android:layout_height="50dp"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
         android:src="@drawable/ic_person"
         android:background="#EEEEEE"
-        android:padding="8dp"/>
+        android:padding="12dp"/>
 
     <LinearLayout
         android:layout_width="0dp"
@@ -37,6 +37,14 @@
             android:text="今天想吃火鍋..."
             android:textSize="14sp"
             android:textColor="#888888"/>
+
+        <!-- ★ 加入底線分隔線 -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#E0E0E0"
+            android:layout_marginTop="16dp" />
     </LinearLayout>
+
 
 </LinearLayout>
