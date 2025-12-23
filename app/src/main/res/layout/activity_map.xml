@@ -75,6 +75,7 @@
             android:layout_margin="10dp"
             android:background="@drawable/searchview_background"
             android:iconifiedByDefault="false"
+            android:elevation="2dp"
             android:queryHint="歷史紀錄" />
 
         <androidx.recyclerview.widget.RecyclerView
