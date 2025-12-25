@@ -36,5 +36,5 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:thumbTint="#FFFFFF"
-        android:trackTint="#4CAF50" />
+        android:trackTint="#FFFFFF" />
 </LinearLayout>
