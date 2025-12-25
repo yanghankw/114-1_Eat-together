@@ -13,9 +13,13 @@ public class SupabaseHelper {
 //    private static final String SUPABASE_URL = "https://wttrpkzltuesmeofvtal.supabase.co";
 //    private static final String SUPABASE_KEY = "sb_publishable_F221TzkGRrNXN6FePJcO1A_ijBU5ip0";
 
-    // cookie url / key
-    private static final String SUPABASE_URL = "https://xkiopgopzmjuatxvnwci.supabase.co";
-    private static final String SUPABASE_KEY = "sb_publishable_pUe70HuQ4n3r4Vq5qlbytg_zJjZlP_3";
+//    // cookie url / key
+//    private static final String SUPABASE_URL = "https://xkiopgopzmjuatxvnwci.supabase.co";
+//    private static final String SUPABASE_KEY = "sb_publishable_pUe70HuQ4n3r4Vq5qlbytg_zJjZlP_3";
+
+    // 楊承翰的key與url......
+    private static final String SUPABASE_URL = "https://rhvbyvpmnjhnxqbrewoj.supabase.co";
+    private static final String SUPABASE_KEY = "sb_publishable_GujBS-Yim9FIh5LPwC0WQg_Xbr7diu-";
 
     private final OkHttpClient client = new OkHttpClient();
     public static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
