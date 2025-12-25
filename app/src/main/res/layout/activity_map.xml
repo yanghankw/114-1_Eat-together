@@ -15,22 +15,14 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_margin="10dp"
-        android:background="#FFFFFF"
         android:elevation="4dp"
         android:iconifiedByDefault="false"
-        android:queryHint="搜尋餐廳 (例如: 麥當勞)" />
+        android:queryHint="搜尋餐廳 (例如: 麥當勞)"
 
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/btn_search_nearby"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:layout_alignParentEnd="true"
-        android:layout_margin="20dp"
-        android:src="@android:drawable/ic_menu_search"
-        android:backgroundTint="#FF9800"
-        app:tint="#FFFFFF"
-        android:contentDescription="搜尋附近餐廳" />
+        android:background="#FFFFFF"
+
+        android:theme="@style/ThemeOverlay.AppCompat.Light" />
+
 
     <Button
         android:id="@+id/btn_confirm_location"
