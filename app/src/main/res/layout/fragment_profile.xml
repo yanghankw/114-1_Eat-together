@@ -48,11 +48,20 @@
             android:id="@+id/btn_email_login"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="登入 / 註冊"
+            android:text="登入"
             android:backgroundTint="#4CAF50"
             android:textColor="#FFF"
             android:textStyle="bold"
             android:padding="12dp"
+            android:layout_marginBottom="16dp"/>
+
+        <Button
+            android:id="@+id/btn_go_to_register"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="註冊"
+            android:backgroundTint="#2196F3"
+            android:textColor="#FFFFFF"
             android:layout_marginBottom="16dp"/>
 
         <TextView
