@@ -8,9 +8,16 @@ import java.net.http.HttpResponse;
 public class ServerSupabaseHelper {
 
     // ★★★ 請填入您的 Supabase 專案資訊 ★★★
-    private static final String PROJECT_URL = "https://wttrpkzltuesmeofvtal.supabase.co";
-    private static final String API_KEY = "sb_publishable_F221TzkGRrNXN6FePJcO1A_ijBU5ip0";
+//    private static final String PROJECT_URL = "https://wttrpkzltuesmeofvtal.supabase.co";
+//    private static final String API_KEY = "sb_publishable_F221TzkGRrNXN6FePJcO1A_ijBU5ip0";
 
+    // Cookie's url / key
+//    private static final String PROJECT_URL = "https://xkiopgopzmjuatxvnwci.supabase.co";
+//    private static final String API_KEY = "sb_publishable_pUe70HuQ4n3r4Vq5qlbytg_zJjZlP_3";
+
+    // 楊承翰的key與url......
+    private static final String PROJECT_URL = "https://rhvbyvpmnjhnxqbrewoj.supabase.co";
+    private static final String API_KEY = "sb_publishable_GujBS-Yim9FIh5LPwC0WQg_Xbr7diu-";
     public static boolean registerUser(String email, String password) {
         try {
             HttpClient client = HttpClient.newHttpClient();
