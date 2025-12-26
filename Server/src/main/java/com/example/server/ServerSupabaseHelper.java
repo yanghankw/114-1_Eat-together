@@ -117,13 +117,11 @@ public class ServerSupabaseHelper {
         }
     }
 
-    // ★ 新增：登入驗證方法
-    public static boolean loginUser(String email, String password) {
+
+    // 修改原本的 loginUser 方法，回傳型別改成 String
+    public static String loginUser(String email, String password) {
         try {
             HttpClient client = HttpClient.newHttpClient();
-
-            // Supabase 登入是用 /auth/v1/token?grant_type=password
-            // Body 格式: {"email": "...", "password": "..."}
             String jsonBody = String.format("{\"email\": \"%s\", \"password\": \"%s\"}", email, password);
 
             HttpRequest request = HttpRequest.newBuilder()
@@ -135,15 +133,16 @@ public class ServerSupabaseHelper {
 
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
-            // 印出結果方便除錯
-            System.out.println("Supabase Login 回應: " + response.statusCode());
-
-            // 200 代表帳密正確，登入成功
-            return response.statusCode() == 200;
+            if (response.statusCode() == 200) {
+                // ★ 成功！從 JSON 裡抓出 User ID
+                // (利用之前寫過的 extractValueFromJson 工具)
+                return extractValueFromJson(response.body(), "id");
+            }
+            return null; // 失敗回傳 null
 
         } catch (Exception e) {
             e.printStackTrace();
-            return false;
+            return null;
         }
     }
 
@@ -154,7 +153,7 @@ public class ServerSupabaseHelper {
 
             // 查詢 public.users 表的所有資料
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(PROJECT_URL + "/rest/v1/users?select=username,email")) // 只抓名字和Email
+                    .uri(URI.create(PROJECT_URL + "/rest/v1/users?select=id,username,email"))
                     .header("apikey", API_KEY)
                     .header("Authorization", "Bearer " + API_KEY)
                     .GET()
@@ -170,5 +169,51 @@ public class ServerSupabaseHelper {
             e.printStackTrace();
         }
         return "[]"; // 失敗回傳空陣列
+    }
+
+
+
+    // ★ 新增：直接加好友 (LINE 風格，直接 accepted)
+    public static boolean addFriendDirectly(String myId, String friendId) {
+        try {
+            // 1. 不能加自己
+            if (myId.equals(friendId)) return false;
+
+            HttpClient client = HttpClient.newHttpClient();
+
+            // 2. 準備 JSON (注意：Supabase 的 uuid 欄位需要引號)
+            String jsonBody = String.format(
+                    "{\"user_id_a\": \"%s\", \"user_id_b\": \"%s\", \"status\": \"accepted\"}",
+                    myId, friendId
+            );
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(PROJECT_URL + "/rest/v1/friendships"))
+                    .header("Content-Type", "application/json")
+                    .header("apikey", API_KEY)
+                    .header("Authorization", "Bearer " + API_KEY)
+                    .header("Prefer", "return=minimal") // 不回傳資料以節省流量
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            // 201 Created 代表成功
+            if (response.statusCode() == 201) {
+                System.out.println("好友新增成功: " + myId + " -> " + friendId);
+                return true;
+            } else if (response.statusCode() == 409) {
+                // 409 代表已經是好友了 (資料重複)，我們也當作成功
+                System.out.println("已經是好友了");
+                return true;
+            }
+
+            System.out.println("加好友失敗: " + response.body());
+            return false;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 }

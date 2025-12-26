@@ -57,18 +57,18 @@ public class ClientHandler implements Runnable {
 
                         System.out.println("驗證登入中: " + email);
 
-                        // ★ 關鍵修改：去 Supabase 檢查帳密
-                        boolean isValid = ServerSupabaseHelper.loginUser(email, password);
+                        // ★ 修改：接收回傳的 UUID
+                        String userId = ServerSupabaseHelper.loginUser(email, password);
 
-                        if (isValid) {
-                            out.println("LOGIN_SUCCESS");
-                            System.out.println("登入成功！");
+                        if (userId != null) {
+                            // ★ 關鍵：把 UUID 黏在成功訊息後面傳給手機
+                            // 格式變成: LOGIN_SUCCESS:a1b2-c3d4...
+                            out.println("LOGIN_SUCCESS:" + userId);
+                            System.out.println("登入成功！ID: " + userId);
                         } else {
-                            out.println("LOGIN_FAIL"); // 帳密錯誤
-                            System.out.println("登入失敗：帳密錯誤");
+                            out.println("LOGIN_FAIL");
+                            System.out.println("登入失敗");
                         }
-                    } else {
-                        out.println("LOGIN_FAIL:格式錯誤");
                     }
                 }
                 // 3. 處理新活動
@@ -86,7 +86,26 @@ public class ClientHandler implements Runnable {
                     // 2. 回傳給手機 (加上前綴字串方便辨識)
                     out.println("USERS_JSON:" + usersJson);
                 }
-                // 5. 獲取好友
+                // 5. 加好友
+                else if (message.startsWith("ADD_FRIEND:")) {
+                    // 指令格式: ADD_FRIEND:我的ID:對方ID
+                    String[] parts = message.split(":");
+                    if (parts.length == 3) {
+                        String myId = parts[1];
+                        String targetId = parts[2];
+
+                        System.out.println("收到加好友請求: " + myId + " -> " + targetId);
+
+                        boolean success = ServerSupabaseHelper.addFriendDirectly(myId, targetId);
+
+                        if (success) {
+                            out.println("ADD_FRIEND_SUCCESS");
+                        } else {
+                            out.println("ADD_FRIEND_FAIL");
+                        }
+                    }
+                }
+                // 6. 獲取好友
                 else if (message.startsWith("GET_FRIENDS")) {
                     System.out.println("Request received: Get Friends List");
                     // 回傳英文名字，避免手機端解碼錯誤
