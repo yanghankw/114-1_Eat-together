@@ -76,7 +76,17 @@ public class ClientHandler implements Runnable {
                     System.out.println("[Mock] Event created request received!");
                     out.println("EVENT_CREATED_SUCCESS");
                 }
-                // 4. 獲取好友
+                // 4. 獲取全部用戶
+                else if (message.startsWith("GET_ALL_USERS")) {
+                    System.out.println("收到請求：獲取所有用戶列表");
+
+                    // 1. 去 Supabase 抓資料
+                    String usersJson = ServerSupabaseHelper.getAllUsers();
+
+                    // 2. 回傳給手機 (加上前綴字串方便辨識)
+                    out.println("USERS_JSON:" + usersJson);
+                }
+                // 5. 獲取好友
                 else if (message.startsWith("GET_FRIENDS")) {
                     System.out.println("Request received: Get Friends List");
                     // 回傳英文名字，避免手機端解碼錯誤

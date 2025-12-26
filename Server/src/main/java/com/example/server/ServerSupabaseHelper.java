@@ -146,4 +146,29 @@ public class ServerSupabaseHelper {
             return false;
         }
     }
+
+    // ★ 新增：取得所有使用者 (回傳 JSON 字串)
+    public static String getAllUsers() {
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+
+            // 查詢 public.users 表的所有資料
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(PROJECT_URL + "/rest/v1/users?select=username,email")) // 只抓名字和Email
+                    .header("apikey", API_KEY)
+                    .header("Authorization", "Bearer " + API_KEY)
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 200) {
+                // ★ 重要：把 JSON 裡面的換行符號拿掉，不然 TcpClient 的 readLine() 會讀錯
+                return response.body().replace("\n", "").replace("\r", "");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return "[]"; // 失敗回傳空陣列
+    }
 }
