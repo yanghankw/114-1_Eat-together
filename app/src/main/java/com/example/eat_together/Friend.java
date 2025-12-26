@@ -1,18 +1,25 @@
 package com.example.eat_together;
 
 public class Friend {
+    private String id; // ★ 1. 必須有這個變數
     private String name;
-    private String status;
-    // 這裡為了簡單先用 int 代表圖片資源 ID，未來連線後可改成 String (URL)
-    private int avatarResId;
+    private String email;
+    private int imageResId;
 
-    public Friend(String name, String status, int avatarResId) {
+    // ★ 2. 建構子必須接收 id
+    public Friend(String id, String name, String email, int imageResId) {
+        this.id = id;
         this.name = name;
-        this.status = status;
-        this.avatarResId = avatarResId;
+        this.email = email;
+        this.imageResId = imageResId;
+    }
+
+    // ★ 3. 必須有 getter
+    public String getId() {
+        return id;
     }
 
     public String getName() { return name; }
-    public String getStatus() { return status; }
-    public int getAvatarResId() { return avatarResId; }
+    public String getEmail() { return email; } // 原本的 status 欄位改用 email 顯示
+    public int getImageResId() { return imageResId; }
 }

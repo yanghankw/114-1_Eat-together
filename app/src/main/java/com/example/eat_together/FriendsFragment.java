@@ -37,12 +37,23 @@ public class FriendsFragment extends Fragment {
         recyclerView = view.findViewById(R.id.recycler_view_friends);
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
 
-        // 1. 初始化空列表
+
+        // ★ 1. 從 SharedPreferences 讀取真實 ID
+        android.content.SharedPreferences prefs = requireContext().getSharedPreferences("UserPrefs", android.content.Context.MODE_PRIVATE);
+        String currentUserId = prefs.getString("user_id", null);
+
+        // 防呆：如果沒登入 (抓不到 ID)，最好提示一下或跳回登入頁
+        if (currentUserId == null) {
+            android.widget.Toast.makeText(getContext(), "尚未登入，無法加好友", android.widget.Toast.LENGTH_SHORT).show();
+            // 這裡可以選擇 return view; 或是做其他處理
+        }
+
+        // 2. 初始化空列表
         friendList = new ArrayList<>();
-        adapter = new FriendsAdapter(friendList);
+        adapter = new FriendsAdapter(friendList, currentUserId);
         recyclerView.setAdapter(adapter);
 
-        // 2. ★ 關鍵：連線抓取所有用戶
+        // 3. ★ 關鍵：連線抓取所有用戶
         loadAllUsers();
 
         return view;
@@ -83,22 +94,24 @@ public class FriendsFragment extends Fragment {
 
     private void updateListWithJson(String jsonString) {
         try {
-            // 解析 JSON Array
             JSONArray jsonArray = new JSONArray(jsonString);
             List<Friend> newUsers = new ArrayList<>();
 
             for (int i = 0; i < jsonArray.length(); i++) {
                 JSONObject userObj = jsonArray.getJSONObject(i);
 
-                // 假設 Supabase 的欄位是 username, email
+                // ★★★ 1. 這裡一定要抓 ID (之前可能漏了) ★★★
+                String uuid = userObj.optString("id");
+
                 String name = userObj.optString("username", "未知用戶");
                 String email = userObj.optString("email", "");
 
-                // 建立物件 (暫用 Friend 物件顯示)
-                newUsers.add(new Friend(name, email, R.drawable.ic_person));
+                // ★★★ 2. 判斷 ID 存在才加入列表 ★★★
+                if (uuid != null && !uuid.isEmpty()) {
+                    newUsers.add(new Friend(uuid, name, email, R.drawable.ic_person));
+                }
             }
 
-            // 3. 回到主執行緒更新 UI
             getActivity().runOnUiThread(() -> {
                 friendList.clear();
                 friendList.addAll(newUsers);
