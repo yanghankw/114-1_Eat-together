@@ -102,28 +102,81 @@ public class ChatActivity extends AppCompatActivity {
                     android.util.Log.d("ChatDebug", "正在補送登入指令 (確保 Server 認識我)...");
                     client.sendMessage("LOGIN:" + savedEmail + ":" + savedPassword);
                 }
+
+                // ★ 登入完畢後，載入歷史訊息！
+                loadHistory();
             }
         }).start();
     }
 
-    // ... (其餘方法保持不變) ...
     private void startListeningForMessages() {
         new Thread(() -> {
             TcpClient client = TcpClient.getInstance();
             while (isListening) {
-                String msg = client.readMessage();
-                if (msg != null && msg.startsWith("NEW_MSG:")) {
-                    String[] parts = msg.split(":", 3);
-                    if (parts.length == 3) {
-                        String senderId = parts[1];
-                        String content = parts[2];
-                        if (senderId.equals(friendId)) {
-                            runOnUiThread(() -> addMessageToScreen(content, ChatMessage.TYPE_OTHER));
+                String msg = client.readMessage(); // 讀取一行
+
+                if (msg != null) {
+
+                    // A. 處理即時訊息 (原本的邏輯)
+                    if (msg.startsWith("NEW_MSG:")) {
+                        String[] parts = msg.split(":", 3);
+                        if (parts.length == 3) {
+                            String senderId = parts[1];
+                            String content = parts[2];
+                            if (senderId.equals(friendId)) {
+                                runOnUiThread(() -> addMessageToScreen(content, ChatMessage.TYPE_OTHER));
+                            }
                         }
+                    }
+
+                    // B. ★ 新增：處理歷史記錄回傳
+                    else if (msg.startsWith("HISTORY_JSON:")) {
+                        String jsonStr = msg.substring("HISTORY_JSON:".length());
+                        parseHistoryJson(jsonStr);
                     }
                 }
             }
         }).start();
+    }
+
+    // 解析歷史 JSON 並顯示
+    private void parseHistoryJson(String jsonStr) {
+        try {
+            org.json.JSONArray array = new org.json.JSONArray(jsonStr);
+            List<ChatMessage> historyList = new ArrayList<>();
+
+            for (int i = 0; i < array.length(); i++) {
+                org.json.JSONObject obj = array.getJSONObject(i);
+
+                String senderId = obj.getString("sender_id");
+                String content = obj.getString("content");
+
+                // 判斷這句話是「我講的」還是「對方講的」
+                int type;
+                if (senderId.equals(myId)) {
+                    type = ChatMessage.TYPE_ME;
+                } else {
+                    type = ChatMessage.TYPE_OTHER;
+                }
+
+                historyList.add(new ChatMessage(content, type));
+            }
+
+            // 更新 UI
+            runOnUiThread(() -> {
+                // 把歷史訊息加在最前面，或是清空再加
+                messageList.clear(); // 先清空，避免重複
+                messageList.addAll(historyList);
+                adapter.notifyDataSetChanged();
+                // 捲動到最底部
+                if (!messageList.isEmpty()) {
+                    recyclerView.scrollToPosition(messageList.size() - 1);
+                }
+            });
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private void addMessageToScreen(String content, int type) {
@@ -136,5 +189,20 @@ public class ChatActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         isListening = false;
+    }
+
+    private void loadHistory() {
+        new Thread(() -> {
+            TcpClient client = TcpClient.getInstance();
+            if (myId == null || friendId == null) return;
+
+            // 1. 發送指令
+            // 格式: GET_CHAT_HISTORY:我的ID:對方ID
+            String cmd = "GET_CHAT_HISTORY:" + myId + ":" + friendId;
+            // 這裡我們直接用 sendMessage，然後靠監聽迴圈來收 HISTORY_JSON
+            // (或是您可以用 client.sendRequest 等待回應，這裡示範用監聽接收)
+            client.sendMessage(cmd);
+
+        }).start();
     }
 }
