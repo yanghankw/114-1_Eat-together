@@ -1,31 +1,26 @@
 package com.example.eat_together;
 
 public class Friend {
-    private String id; // ★ 1. 必須有這個變數
+    private String id;        // 使用者的 UUID
     private String name;
     private String email;
     private int imageResId;
+    private boolean isFriend; // ★ 新增：是否已經是好友
 
-    private boolean isAdded; // ★ 新增：是否已經加入好友
-
-    // ★ 2. 建構子必須接收 id
-    public Friend(String id, String name, String email, int imageResId) {
+    // 建構子
+    public Friend(String id, String name, String email, int imageResId, boolean isFriend) {
         this.id = id;
         this.name = name;
         this.email = email;
         this.imageResId = imageResId;
-        this.isAdded = false; // 預設為 false
+        this.isFriend = isFriend;
     }
 
-    // ★ 3. 必須有 getter
-    public String getId() {
-        return id;
-    }
-
+    public String getId() { return id; }
     public String getName() { return name; }
-    public String getEmail() { return email; } // 原本的 status 欄位改用 email 顯示
+    public String getEmail() { return email; }
     public int getImageResId() { return imageResId; }
-    // ★ Getter & Setter
-    public boolean isAdded() { return isAdded; }
-    public void setAdded(boolean added) { isAdded = added; }
+    public boolean isFriend() { return isFriend; }
+
+    public void setFriend(boolean friend) { isFriend = friend; }
 }

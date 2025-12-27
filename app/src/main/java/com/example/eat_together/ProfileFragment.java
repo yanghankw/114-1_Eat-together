@@ -166,11 +166,12 @@ public class ProfileFragment extends Fragment {
         builder.show();
     }
 
+// 在 ProfileFragment.java 中
+
     private void updateNameOnServer(String newName) {
-        // 1. 從手機紀錄取得目前的 User ID
         android.content.SharedPreferences prefs = requireContext().getSharedPreferences("UserPrefs", android.content.Context.MODE_PRIVATE);
         String userUuid = prefs.getString("user_id", null);
-
+//        String userName = prefs.getString("username", null);
         if (userUuid == null) {
             Toast.makeText(getContext(), "錯誤：找不到使用者 ID", Toast.LENGTH_SHORT).show();
             return;
@@ -178,23 +179,22 @@ public class ProfileFragment extends Fragment {
 
         new Thread(() -> {
             TcpClient client = TcpClient.getInstance();
-            client.connect(); // 確保連線
+            client.connect();
 
-            // 2. 組合指令: UPDATE_NAME:UUID:新名字
             String cmd = "UPDATE_NAME:" + userUuid + ":" + newName;
-
-            // ★ 建議使用 sendRequest (如果有實作等待回傳)，這樣才能確定成功後改 UI
-            // 如果你的 TcpClient 只有 sendMessage，那就只能假設成功
             String response = client.sendRequest(cmd);
 
-            // 3. 回到主執行緒更新畫面
             getActivity().runOnUiThread(() -> {
                 if (response != null && response.equals("UPDATE_NAME_SUCCESS")) {
-                    tvName.setText(newName); // ★ 介面直接更新，不用重整
+                    tvName.setText(newName);
                     Toast.makeText(getContext(), "更名成功！", Toast.LENGTH_SHORT).show();
 
-                    // (選用) 也可以順便把新名字存回 SharedPreferences，下次開啟才不會變回來
-                    // prefs.edit().putString("user_name", newName).apply();
+                    // ★★★ 關鍵修正：必須更新 SharedPreferences ★★★
+                    // 請注意：這裡的 Key 必須是 "username"，因為你在 checkLocalLogin 是用這個 Key 讀取的
+                    prefs.edit()
+                            .putString("username", newName)
+                            .apply();
+
                 } else {
                     Toast.makeText(getContext(), "更名失敗，伺服器無回應", Toast.LENGTH_SHORT).show();
                 }

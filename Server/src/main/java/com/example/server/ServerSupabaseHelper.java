@@ -212,7 +212,7 @@ public class ServerSupabaseHelper {
         return "[]"; // 失敗回傳空陣列
     }
 
-    // ★ 新增：直接加好友 (LINE 風格，直接 accepted)
+    // ★ 修改：檢查是否已經是好友，如果是就不加，否則加
     public static boolean addFriendDirectly(String myId, String friendId) {
         try {
             // 1. 不能加自己
@@ -220,7 +220,36 @@ public class ServerSupabaseHelper {
 
             HttpClient client = HttpClient.newHttpClient();
 
-            // 2. 準備 JSON (注意：Supabase 的 uuid 欄位需要引號)
+            // 2. ★ 新增檢查：先查詢是否已經存在關係 (A->B 或 B->A)
+            // PostgREST 語法: or=(and(user_id_a.eq.myId,user_id_b.eq.friendId),and(user_id_a.eq.friendId,user_id_b.eq.myId))
+            String query = String.format(
+                    "or=(and(user_id_a.eq.%s,user_id_b.eq.%s),and(user_id_a.eq.%s,user_id_b.eq.%s))",
+                    myId, friendId, friendId, myId
+            );
+
+            // 因為有括號，如果 Server 報錯可能需要 URL Encode，但這裡先試試直接傳
+            // 如果遇到 400 Bad Request，請改用 URLEncoder.encode(query, "UTF-8")
+            // 但 HttpClient 的 URI.create 可能會自動處理部分編碼，或需要我們手動處理
+            // 為了保險，這裡手動替換常見符號，或者乾脆簡單一點：如果 Supabase 設定了唯一約束 (unique constraint)，直接 insert 就會擋掉
+
+            // 檢查 API
+            HttpRequest checkRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(PROJECT_URL + "/rest/v1/friendships?" + query))
+                    .header("apikey", API_KEY)
+                    .header("Authorization", "Bearer " + API_KEY)
+                    .GET()
+                    .build();
+
+            HttpResponse<String> checkResponse = client.send(checkRequest, HttpResponse.BodyHandlers.ofString());
+            
+            // 如果回傳的 JSON 陣列不是空的 (例如 "[{...}]")，代表已經有關係了
+            if (checkResponse.statusCode() == 200 && checkResponse.body().length() > 5) {
+                System.out.println("已經是好友了，跳過新增");
+                return true; // 當作成功，因為結果是一樣的 (已是好友)
+            }
+
+            // 3. 如果沒關係，才新增
+            // 準備 JSON (注意：Supabase 的 uuid 欄位需要引號)
             String jsonBody = String.format(
                     "{\"user_id_a\": \"%s\", \"user_id_b\": \"%s\", \"status\": \"accepted\"}",
                     myId, friendId
@@ -242,8 +271,8 @@ public class ServerSupabaseHelper {
                 System.out.println("好友新增成功: " + myId + " -> " + friendId);
                 return true;
             } else if (response.statusCode() == 409) {
-                // 409 代表已經是好友了 (資料重複)，我們也當作成功
-                System.out.println("已經是好友了");
+                // 409 代表已經是好友了 (資料庫唯一約束擋下)，也算成功
+                System.out.println("已經是好友了 (DB Constraint)");
                 return true;
             }
 
