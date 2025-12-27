@@ -267,4 +267,41 @@ public class ServerSupabaseHelper {
             return false;
         }
     }
+
+    // ★ 新增：獲取兩人間的聊天歷史記錄
+    public static String getChatHistory(String user1, String user2) {
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+
+            // 這是 PostgREST 的語法，意思是：
+            // 找出 (sender=user1 AND receiver=user2) OR (sender=user2 AND receiver=user1)
+            // 並且依照 created_at (時間) 升冪排序 (舊的在上面)
+            String query = String.format(
+                    "or=(and(sender_id.eq.%s,receiver_id.eq.%s),and(sender_id.eq.%s,receiver_id.eq.%s))&order=created_at.asc",
+                    user1, user2, user2, user1
+            );
+
+            // 因為 query 裡面有括號跟逗號，URL 編碼比較安全，但為了簡單我們先直接拼
+            // 如果遇到 400 錯誤，可能需要對 query 做 URLEncoder.encode()
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(PROJECT_URL + "/rest/v1/messages?" + query))
+                    .header("apikey", API_KEY)
+                    .header("Authorization", "Bearer " + API_KEY)
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 200) {
+                // 去除換行，回傳 JSON
+                return response.body().replace("\n", "").replace("\r", "");
+            } else {
+                System.out.println("查詢歷史失敗: " + response.body());
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return "[]";
+    }
 }

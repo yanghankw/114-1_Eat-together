@@ -116,6 +116,21 @@ public class ClientHandler implements Runnable {
                         }
                     }
                 }
+                // ★ 新增：獲取歷史訊息
+                else if (message.startsWith("GET_CHAT_HISTORY:")) {
+                    // 格式: GET_CHAT_HISTORY:我的ID:對方ID
+                    String[] parts = message.split(":");
+                    if (parts.length == 3) {
+                        String myId = parts[1];
+                        String friendId = parts[2];
+
+                        System.out.println("查詢歷史記錄: " + myId + " <-> " + friendId);
+
+                        String historyJson = ServerSupabaseHelper.getChatHistory(myId, friendId);
+                        out.println("HISTORY_JSON:" + historyJson);
+                    }
+                }
+
                 else {
                     out.println("UNKNOWN_COMMAND");
                 }
