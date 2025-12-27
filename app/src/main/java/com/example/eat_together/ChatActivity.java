@@ -186,23 +186,27 @@ public class ChatActivity extends AppCompatActivity {
                 String content = obj.getString("content");
 
                 int type;
-                String displayName; // ★ 決定要顯示什麼名字
+                String displayName = "成員"; // 預設值
 
                 if (senderId.equals(myId)) {
                     type = ChatMessage.TYPE_ME;
                     displayName = "我";
                 } else {
                     type = ChatMessage.TYPE_OTHER;
-                    // 如果是私聊，對方的名字就是 friendName
-                    // 如果是群聊，暫時顯示 senderId (或是您可以改成 "成員")
-                    if ("PRIVATE".equals(chatType)) {
-                        displayName = friendName != null ? friendName : "對方";
+
+                    if ("GROUP".equals(chatType)) {
+                        // ★★★ 修改重點：從巢狀的 users 物件裡抓 username ★★★
+                        // 檢查有沒有 "users" 這個欄位
+                        if (!obj.isNull("users")) {
+                            org.json.JSONObject userObj = obj.getJSONObject("users");
+                            displayName = userObj.optString("username", "成員");
+                        }
                     } else {
-                        displayName = "成員"; // 暫時解法，因為歷史 JSON 還沒包含名字
+                        // 私聊的話，對方名字通常就是好友名字 (或是您之後也可以用同樣的 Join 技巧來查)
+                        displayName = friendName != null ? friendName : "對方";
                     }
                 }
 
-                // ★ 這裡傳入 3 個參數，修復 "Expected 3 arguments" 錯誤
                 historyList.add(new ChatMessage(displayName, content, type));
             }
 
@@ -217,6 +221,7 @@ public class ChatActivity extends AppCompatActivity {
 
         } catch (Exception e) {
             e.printStackTrace();
+            android.util.Log.e("ChatDebug", "解析歷史訊息失敗: " + e.getMessage());
         }
     }
 
