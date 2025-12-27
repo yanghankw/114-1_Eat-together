@@ -14,7 +14,7 @@ import java.util.List;
 public class ChatsAdapter extends RecyclerView.Adapter<ChatsAdapter.ViewHolder> {
 
     private List<ChatSession> chatList;
-    private Context context; // 需要 Context 來啟動 Activity
+    private Context context;
 
     public ChatsAdapter(Context context, List<ChatSession> chatList) {
         this.context = context;
@@ -36,10 +36,14 @@ public class ChatsAdapter extends RecyclerView.Adapter<ChatsAdapter.ViewHolder> 
         holder.tvTime.setText(session.getTime());
         holder.ivAvatar.setImageResource(session.getAvatarResId());
 
-        // 設定點擊事件：跳轉到 ChatActivity
+        // 設定點擊事件
         holder.itemView.setOnClickListener(v -> {
-            Intent intent = new Intent(context, ChatActivity.class);
-            intent.putExtra("CHAT_NAME", session.getName()); // 把名字傳過去
+            Intent intent = new Intent(context, ChatActivity.class); // 假設您的聊天頁面叫 ChatActivity
+
+            // ★ 關鍵：把對方的 ID 和名字都傳過去
+            intent.putExtra("FRIEND_ID", session.getFriendId());
+            intent.putExtra("FRIEND_NAME", session.getName());
+
             context.startActivity(intent);
         });
     }

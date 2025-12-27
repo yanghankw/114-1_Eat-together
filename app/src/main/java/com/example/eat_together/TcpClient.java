@@ -65,4 +65,9 @@ public class TcpClient {
             }
         }).start();
     }
+
+    public boolean isConnected() {
+        // 檢查 socket 是否存在，且是否連線中
+        return socket != null && socket.isConnected() && !socket.isClosed();
+    }
 }
