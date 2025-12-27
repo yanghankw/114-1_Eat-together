@@ -96,7 +96,15 @@ public class ProfileFragment extends Fragment {
             Intent intent = new Intent(getActivity(), RegisterActivity.class);
             startActivity(intent);
         });
+// 讓使用者點擊名字時，可以修改名字
+        tvName.setOnClickListener(v -> {
+            showEditNameDialog();
+        });
 
+// 或者你也可以綁定在 settings 按鈕
+        btnSettings.setOnClickListener(v -> {
+            showEditNameDialog();
+        });
         return view;
     }
 
@@ -133,6 +141,67 @@ public class ProfileFragment extends Fragment {
         updateUI(account);
     }
 
+    // 顯示修改名字的對話框
+    private void showEditNameDialog() {
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(getContext());
+        builder.setTitle("修改暱稱");
+
+        // 設定輸入框
+        final EditText input = new EditText(getContext());
+        input.setHint("請輸入新名字");
+        builder.setView(input);
+
+        // 設定「確定」按鈕
+        builder.setPositiveButton("確定", (dialog, which) -> {
+            String newName = input.getText().toString().trim();
+            if (!newName.isEmpty()) {
+                // 執行你原本想寫的 Server 請求
+                updateNameOnServer(newName);
+            }
+        });
+
+        // 設定「取消」按鈕
+        builder.setNegativeButton("取消", (dialog, which) -> dialog.cancel());
+
+        builder.show();
+    }
+
+    private void updateNameOnServer(String newName) {
+        // 1. 從手機紀錄取得目前的 User ID
+        android.content.SharedPreferences prefs = requireContext().getSharedPreferences("UserPrefs", android.content.Context.MODE_PRIVATE);
+        String userUuid = prefs.getString("user_id", null);
+
+        if (userUuid == null) {
+            Toast.makeText(getContext(), "錯誤：找不到使用者 ID", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        new Thread(() -> {
+            TcpClient client = TcpClient.getInstance();
+            client.connect(); // 確保連線
+
+            // 2. 組合指令: UPDATE_NAME:UUID:新名字
+            String cmd = "UPDATE_NAME:" + userUuid + ":" + newName;
+
+            // ★ 建議使用 sendRequest (如果有實作等待回傳)，這樣才能確定成功後改 UI
+            // 如果你的 TcpClient 只有 sendMessage，那就只能假設成功
+            String response = client.sendRequest(cmd);
+
+            // 3. 回到主執行緒更新畫面
+            getActivity().runOnUiThread(() -> {
+                if (response != null && response.equals("UPDATE_NAME_SUCCESS")) {
+                    tvName.setText(newName); // ★ 介面直接更新，不用重整
+                    Toast.makeText(getContext(), "更名成功！", Toast.LENGTH_SHORT).show();
+
+                    // (選用) 也可以順便把新名字存回 SharedPreferences，下次開啟才不會變回來
+                    // prefs.edit().putString("user_name", newName).apply();
+                } else {
+                    Toast.makeText(getContext(), "更名失敗，伺服器無回應", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }).start();
+    }
+
     // --- 功能實作區 ---
 
     // ★ 新增這個方法：檢查 SharedPreferences 裡的紀錄
@@ -140,13 +209,14 @@ public class ProfileFragment extends Fragment {
         android.content.SharedPreferences prefs = requireContext().getSharedPreferences("UserPrefs", android.content.Context.MODE_PRIVATE);
         String userId = prefs.getString("user_id", null);
         String userEmail = prefs.getString("user_email", "使用者"); // 建議您在登入成功時順便存 email
+        String userName = prefs.getString("username", "匿名");
 
         if (userId != null) {
             // === 有紀錄，直接切換到已登入畫面 ===
             layoutLogin.setVisibility(View.GONE);
             layoutProfile.setVisibility(View.VISIBLE);
 
-            tvName.setText("已登入");
+            tvName.setText(userName);
             tvEmail.setText(userEmail);
             tvBio.setText("歡迎回來！");
             return true;
@@ -202,7 +272,7 @@ public class ProfileFragment extends Fragment {
                         // ... 切換 UI ...
                         layoutLogin.setVisibility(View.GONE);
                         layoutProfile.setVisibility(View.VISIBLE);
-                        tvName.setText("TCP 使用者");
+                        tvName.setText(userId);
                         tvEmail.setText(email);
                     }
                 } else {

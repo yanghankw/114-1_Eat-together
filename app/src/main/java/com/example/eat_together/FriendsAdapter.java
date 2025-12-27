@@ -46,6 +46,29 @@ public class FriendsAdapter extends RecyclerView.Adapter<FriendsAdapter.ViewHold
             // B. 背景發送網路請求
             sendAddFriendCommand(friend.getId());
         });
+
+        // ★ 關鍵修改：根據 isAdded 狀態設定按鈕
+        if (friend.isAdded()) {
+            holder.btnAdd.setText("已加入");
+            holder.btnAdd.setEnabled(false); // 禁止點擊
+            holder.btnAdd.setBackgroundColor(0xFF888888); // 灰色
+        } else {
+            holder.btnAdd.setText("新增好友"); // 或是 "+"
+            holder.btnAdd.setEnabled(true);
+            holder.btnAdd.setBackgroundColor(0xFF6200EE); // 你的原始紫色 (請填入你的 colorPrimary)
+
+            // 只有在還沒加入時，才綁定點擊事件
+            holder.btnAdd.setOnClickListener(v -> {
+                // A. 立即變色 (使用者體驗優化)
+                friend.setAdded(true); // ★ 記得更新資料模型，這樣滑動時才不會變回來
+                holder.btnAdd.setText("已加入");
+                holder.btnAdd.setEnabled(false);
+                holder.btnAdd.setBackgroundColor(0xFF888888);
+
+                // B. 發送請求
+                sendAddFriendCommand(friend.getId());
+            });
+        }
     }
 
     // 輔助方法：發送指令給 Server
@@ -81,4 +104,5 @@ public class FriendsAdapter extends RecyclerView.Adapter<FriendsAdapter.ViewHold
             btnAdd = itemView.findViewById(R.id.btn_add_friend);
         }
     }
+
 }

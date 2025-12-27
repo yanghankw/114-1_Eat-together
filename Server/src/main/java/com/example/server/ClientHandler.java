@@ -178,6 +178,28 @@ public class ClientHandler implements Runnable {
                         }
                     }
                 }
+
+                // ★★★ 在這裡插入 UPDATE_NAME 的邏輯 ★★★
+                else if (message.startsWith("UPDATE_NAME:")) {
+                    // 指令格式: UPDATE_NAME:使用者UUID:新名字
+                    String[] parts = message.split(":");
+                    if (parts.length == 3) {
+                        String targetUuid = parts[1];
+                        String newName = parts[2];
+
+                        System.out.println("收到改名請求: " + targetUuid + " -> " + newName);
+
+                        // 呼叫 ServerSupabaseHelper 的方法
+                        boolean success = ServerSupabaseHelper.updateUsername(targetUuid, newName);
+
+                        if (success) {
+                            out.println("UPDATE_NAME_SUCCESS");
+                        } else {
+                            out.println("UPDATE_NAME_FAIL");
+                        }
+                    }
+                }
+
                 else {
                     out.println("UNKNOWN_COMMAND");
                 }
@@ -198,4 +220,5 @@ public class ClientHandler implements Runnable {
     public void sendMessage(String msg) {
         out.println(msg);
     }
+
 }

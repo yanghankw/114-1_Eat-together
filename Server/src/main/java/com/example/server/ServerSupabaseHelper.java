@@ -4,6 +4,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ServerSupabaseHelper {
 
@@ -94,6 +96,45 @@ public class ServerSupabaseHelper {
                 System.out.println("使用者資料表建立失敗: " + response.body());
                 return false;
             }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    // ★ 新功能：更新使用者名稱
+    public static boolean updateUsername(String uuid, String newName) {
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+
+            // 1. 準備 JSON：只傳送要修改的欄位 (username)
+            // 注意：為了防止名字裡有引號導致 JSON 格式錯誤，簡單作業可以直接用 format，但進階建議用 JSONObject
+            String jsonBody = String.format("{\"username\": \"%s\"}", newName);
+
+            // 2. 建構請求
+            // ★ 關鍵：網址後面要加 ?id=eq.UUID，告訴 Supabase 要改誰
+            // ★ 關鍵：方法要用 PATCH (更新)
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(PROJECT_URL + "/rest/v1/users?id=eq." + uuid))
+                    .header("Content-Type", "application/json")
+                    .header("apikey", API_KEY)
+                    .header("Authorization", "Bearer " + API_KEY)
+                    .header("Prefer", "return=minimal")
+                    .method("PATCH", HttpRequest.BodyPublishers.ofString(jsonBody)) // Java 11 寫法
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            // 204 No Content 代表更新成功 (因為我們用了 return=minimal)
+            // 200 OK 也是成功
+            if (response.statusCode() == 200 || response.statusCode() == 204) {
+                System.out.println("名稱更新成功: " + newName);
+                return true;
+            } else {
+                System.out.println("名稱更新失敗: " + response.statusCode() + " " + response.body());
+                return false;
+            }
+
         } catch (Exception e) {
             e.printStackTrace();
             return false;
