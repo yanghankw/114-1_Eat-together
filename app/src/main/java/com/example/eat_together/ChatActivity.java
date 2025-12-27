@@ -23,14 +23,22 @@ public class ChatActivity extends AppCompatActivity {
     private String myId;
 
     private boolean isListening = true;
+    private String chatType; // "PRIVATE" or "GROUP"
+    private String targetId; // 如果是私聊就是 friendId，如果是群聊就是 groupId
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_chat);
 
-        // 1. 獲取資料
-        friendId = getIntent().getStringExtra("FRIEND_ID");
+        // 1. 接收 Intent 參數
+        // 預設是 PRIVATE (為了相容舊程式碼)
+        chatType = getIntent().getStringExtra("CHAT_TYPE");
+        if (chatType == null) chatType = "PRIVATE";
+
+        // 把原本的 friendId 改名為 targetId 會比較通用，但為了少改code，我們先這樣用：
+        // 如果是群組，FRIEND_ID 傳的就是 GroupID
+        targetId = getIntent().getStringExtra("FRIEND_ID");
         friendName = getIntent().getStringExtra("FRIEND_NAME");
 
         // --- 第一次宣告 prefs (這是正確的) ---
@@ -63,8 +71,15 @@ public class ChatActivity extends AppCompatActivity {
                 new Thread(() -> {
                     TcpClient client = TcpClient.getInstance();
                     if (client.isConnected()) {
-                        client.sendMessage(tcpMessage);
-                        android.util.Log.d("ChatDebug", "已呼叫 sendMessage (送出成功)");
+                        String cmd;
+                        if ("GROUP".equals(chatType)) {
+                            // ★ 群組發送格式: GROUP_MSG:群組ID:內容
+                            cmd = "GROUP_MSG:" + targetId + ":" + content;
+                        } else {
+                            // ★ 私聊發送格式: MSG:好友ID:內容
+                            cmd = "MSG:" + targetId + ":" + content;
+                        }
+                        client.sendMessage(cmd);
                     } else {
                         android.util.Log.e("ChatDebug", "發送失敗：TcpClient 未連線");
                         // 嘗試緊急連線
@@ -113,26 +128,33 @@ public class ChatActivity extends AppCompatActivity {
         new Thread(() -> {
             TcpClient client = TcpClient.getInstance();
             while (isListening) {
-                String msg = client.readMessage(); // 讀取一行
-
+                String msg = client.readMessage();
                 if (msg != null) {
 
-                    // A. 處理即時訊息 (原本的邏輯)
-                    if (msg.startsWith("NEW_MSG:")) {
+                    // A. 私聊訊息
+                    if (msg.startsWith("NEW_MSG:") && "PRIVATE".equals(chatType)) {
                         String[] parts = msg.split(":", 3);
-                        if (parts.length == 3) {
-                            String senderId = parts[1];
-                            String content = parts[2];
-                            if (senderId.equals(friendId)) {
-                                runOnUiThread(() -> addMessageToScreen(content, ChatMessage.TYPE_OTHER));
-                            }
+                        String senderId = parts[1];
+                        // 只有當發送者是目前聊天的對象才顯示
+                        if (senderId.equals(targetId)) {
+                            runOnUiThread(() -> addMessageToScreen(parts[2], ChatMessage.TYPE_OTHER));
                         }
                     }
 
-                    // B. ★ 新增：處理歷史記錄回傳
-                    else if (msg.startsWith("HISTORY_JSON:")) {
-                        String jsonStr = msg.substring("HISTORY_JSON:".length());
-                        parseHistoryJson(jsonStr);
+                    // B. ★ 群組訊息
+                    else if (msg.startsWith("NEW_GROUP_MSG:") && "GROUP".equals(chatType)) {
+                        // 格式: NEW_GROUP_MSG:群組ID:發送者ID:內容
+                        String[] parts = msg.split(":", 4);
+                        if (parts.length == 4) {
+                            String msgGroupId = parts[1];
+                            String senderId = parts[2];
+                            String content = parts[3];
+
+                            // 只有當訊息屬於目前這個群組，且不是我自己發的
+                            if (msgGroupId.equals(targetId) && !senderId.equals(myId)) {
+                                runOnUiThread(() -> addMessageToScreen(content, ChatMessage.TYPE_OTHER));
+                            }
+                        }
                     }
                 }
             }

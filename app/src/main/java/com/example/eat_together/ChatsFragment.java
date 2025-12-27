@@ -60,6 +60,20 @@ public class ChatsFragment extends Fragment {
             Toast.makeText(getContext(), "請先登入", Toast.LENGTH_SHORT).show();
         }
 
+        // ★★★ 新增：綁定按鈕並設定跳轉 ★★★
+        android.widget.Button btnTest = view.findViewById(R.id.btn_test_group);
+        btnTest.setOnClickListener(v -> {
+            // 準備跳轉到 ChatActivity
+            android.content.Intent intent = new android.content.Intent(getContext(), ChatActivity.class);
+
+            // 設定參數告訴 ChatActivity 這是「群組聊天」
+            intent.putExtra("CHAT_TYPE", "GROUP");   // 告訴它是群組
+            intent.putExtra("FRIEND_ID", "1");       // ★ 群組 ID (請確認資料庫 groups 表有 id=1 的資料)
+            intent.putExtra("FRIEND_NAME", "美食團"); // 群組名稱 (顯示在標題)
+
+            startActivity(intent);
+        });
+
         return view;
     }
 
