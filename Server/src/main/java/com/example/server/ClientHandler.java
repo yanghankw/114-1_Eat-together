@@ -94,24 +94,22 @@ public class ClientHandler implements Runnable {
                 // 7. 處理聊天訊息
                 else if (message.startsWith("MSG:")) {
                     String[] parts = message.split(":", 3);
-
-                    // ★ 修改這裡：加上 else 判斷
                     if (parts.length == 3) {
                         if (myUserId != null) {
-                            // === 已登入，正常處理 ===
                             String receiverId = parts[1];
                             String content = parts[2];
-                            System.out.println(myUserId + " 傳給 " + receiverId + ": " + content);
+
+                            // ★ 1. 先去查我的名字
+                            String myName = ServerSupabaseHelper.getUserName(myUserId);
 
                             ServerSupabaseHelper.saveMessage(myUserId, receiverId, content);
 
                             ClientHandler receiverHandler = ServerMain.onlineUsers.get(receiverId);
                             if (receiverHandler != null) {
-                                receiverHandler.sendMessage("NEW_MSG:" + myUserId + ":" + content);
+                                // ★ 2. 轉發時，加入名字 (格式: NEW_MSG:ID:Name:Content)
+                                receiverHandler.sendMessage("NEW_MSG:" + myUserId + ":" + myName + ":" + content);
                             }
                         } else {
-                            // === ★ 未登入，印出錯誤！ ===
-                            System.out.println("⚠️ 忽略訊息：使用者尚未登入 (myUserId is null)");
                             out.println("ERROR:請重新登入");
                         }
                     }
@@ -130,31 +128,38 @@ public class ClientHandler implements Runnable {
                         out.println("HISTORY_JSON:" + historyJson);
                     }
                 }
+                // ★ 新增：處理群組歷史查詢
+                else if (message.startsWith("GET_GROUP_HISTORY:")) {
+                    String[] parts = message.split(":");
+                    if (parts.length == 2) {
+                        String groupId = parts[1];
+                        System.out.println("查詢群組歷史: " + groupId);
+
+                        String historyJson = ServerSupabaseHelper.getGroupHistory(groupId);
+                        // 注意：這裡我們回傳一樣的標頭 "HISTORY_JSON"，這樣 App 端不用改解析邏輯就能共用！
+                        out.println("HISTORY_JSON:" + historyJson);
+                    }
+                }
                 // ★ 新增：處理群組訊息
                 else if (message.startsWith("GROUP_MSG:")) {
-                    // 格式: GROUP_MSG:群組ID:內容
                     String[] parts = message.split(":", 3);
                     if (parts.length == 3 && myUserId != null) {
                         String groupId = parts[1];
                         String content = parts[2];
 
-                        System.out.println("群組 " + groupId + " 收到訊息: " + content);
+                        // ★ 1. 先去查我的名字
+                        String myName = ServerSupabaseHelper.getUserName(myUserId);
 
-                        // 1. 存入資料庫
                         ServerSupabaseHelper.saveGroupMessage(groupId, myUserId, content);
-
-                        // 2. 找出群組所有成員
                         java.util.List<String> members = ServerSupabaseHelper.getGroupMemberIds(groupId);
 
-                        // 3. 廣播給所有線上成員
                         for (String memberId : members) {
-                            // 不用傳給自己 (或是您想傳也可以，看 UI 設計)
                             if (memberId.equals(myUserId)) continue;
 
                             ClientHandler handler = ServerMain.onlineUsers.get(memberId);
                             if (handler != null) {
-                                // 傳送格式: NEW_GROUP_MSG:群組ID:發送者ID:內容
-                                handler.sendMessage("NEW_GROUP_MSG:" + groupId + ":" + myUserId + ":" + content);
+                                // ★ 2. 轉發時，加入名字 (格式: NEW_GROUP_MSG:GroupID:ID:Name:Content)
+                                handler.sendMessage("NEW_GROUP_MSG:" + groupId + ":" + myUserId + ":" + myName + ":" + content);
                             }
                         }
                     }

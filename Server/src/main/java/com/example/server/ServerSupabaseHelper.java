@@ -409,4 +409,61 @@ public class ServerSupabaseHelper {
             client.send(request, HttpResponse.BodyHandlers.ofString());
         } catch (Exception e) {}
     }
+
+    // ★ 新增：根據 UUID 獲取使用者名稱
+    public static String getUserName(String uuid) {
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+            // 查詢 users 表，只抓 username
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(PROJECT_URL + "/rest/v1/users?id=eq." + uuid + "&select=username"))
+                    .header("apikey", API_KEY)
+                    .header("Authorization", "Bearer " + API_KEY)
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 200) {
+                // 回傳格式是 [{"username": "小明"}]
+                // 我們用簡單字串處理來抓
+                String json = response.body();
+                String marker = "\"username\":\"";
+                int start = json.indexOf(marker);
+                if (start != -1) {
+                    start += marker.length();
+                    int end = json.indexOf("\"", start);
+                    return json.substring(start, end);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return "未知用戶"; // 查不到時的回傳值
+    }
+
+    // ★ 新增：獲取群組聊天歷史
+    public static String getGroupHistory(String groupId) {
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+
+            // 查詢 group_messages 表，條件是 group_id = groupId
+            // 依照時間排序
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(PROJECT_URL + "/rest/v1/group_messages?group_id=eq." + groupId + "&order=created_at.asc"))
+                    .header("apikey", API_KEY)
+                    .header("Authorization", "Bearer " + API_KEY)
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 200) {
+                return response.body().replace("\n", "").replace("\r", "");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return "[]";
+    }
 }
