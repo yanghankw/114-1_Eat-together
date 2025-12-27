@@ -194,7 +194,8 @@ public class ProfileFragment extends Fragment {
                         android.content.SharedPreferences prefs = requireContext().getSharedPreferences("UserPrefs", android.content.Context.MODE_PRIVATE);
                         prefs.edit()
                                 .putString("user_id", userId)
-                                .putString("user_email", email) // ★ 多存這一行
+                                .putString("user_email", email)     // 記得存 Email
+                                .putString("user_password", password) // ★ 關鍵：存密碼
                                 .apply();
 
                         Toast.makeText(getContext(), "登入成功！", Toast.LENGTH_SHORT).show();

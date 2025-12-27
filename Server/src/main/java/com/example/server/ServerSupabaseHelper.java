@@ -171,8 +171,6 @@ public class ServerSupabaseHelper {
         return "[]"; // 失敗回傳空陣列
     }
 
-
-
     // ★ 新增：直接加好友 (LINE 風格，直接 accepted)
     public static boolean addFriendDirectly(String myId, String friendId) {
         try {
@@ -210,6 +208,59 @@ public class ServerSupabaseHelper {
 
             System.out.println("加好友失敗: " + response.body());
             return false;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    public static String getFriendList(String myId) {
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+
+            // 直接查詢我們剛剛建好的 View，條件是 me = eq.我的ID
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(PROJECT_URL + "/rest/v1/friend_details?me=eq." + myId))
+                    .header("apikey", API_KEY)
+                    .header("Authorization", "Bearer " + API_KEY)
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 200) {
+                // 去除換行符號
+                return response.body().replace("\n", "").replace("\r", "");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return "[]";
+    }
+
+    // 新增：儲存聊天訊息
+    public static boolean saveMessage(String senderId, String receiverId, String content) {
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+
+            // JSON 格式
+            String jsonBody = String.format(
+                    "{\"sender_id\": \"%s\", \"receiver_id\": \"%s\", \"content\": \"%s\"}",
+                    senderId, receiverId, content
+            );
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(PROJECT_URL + "/rest/v1/messages"))
+                    .header("Content-Type", "application/json")
+                    .header("apikey", API_KEY)
+                    .header("Authorization", "Bearer " + API_KEY)
+                    .header("Prefer", "return=minimal")
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            return response.statusCode() == 201;
 
         } catch (Exception e) {
             e.printStackTrace();

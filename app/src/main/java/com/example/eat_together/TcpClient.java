@@ -53,21 +53,27 @@ public class TcpClient {
     }
 
     // ★ 修改 2: 發送前檢查是否已連線
-    public void sendMessage(final String message) {
-        new Thread(() -> {
-            if (out != null) {
-                out.println(message);
-                Log.d("TCP", "已發送: " + message);
-            } else {
-                Log.e("TCP", "❌ 發送失敗：尚未連線或連線中斷");
-                // 嘗試重新連線 (選擇性)
-                // connect();
-            }
-        }).start();
+    // 打開 TcpClient.java
+    public void sendMessage(String message) {
+        if (out != null && !out.checkError()) {
+            out.println(message);
+            out.flush(); // 強制推出去
+        }
     }
 
     public boolean isConnected() {
         // 檢查 socket 是否存在，且是否連線中
         return socket != null && socket.isConnected() && !socket.isClosed();
+    }
+
+    public String readMessage() {
+        try {
+            if (in != null) {
+                return in.readLine(); // 會等待直到有新訊息
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 }
