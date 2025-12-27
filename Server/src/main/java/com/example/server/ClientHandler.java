@@ -39,7 +39,7 @@ public class ClientHandler implements Runnable {
                         out.println("REGISTER_FAIL:格式錯誤");
                     }
                 }
-                // 2. 處理登入 (★ 修改重點：註冊到線上名單)
+// 2. 處理登入
                 else if (message.startsWith("LOGIN:")) {
                     String[] parts = message.split(":");
                     if (parts.length == 3) {
@@ -47,16 +47,23 @@ public class ClientHandler implements Runnable {
                         String password = parts[2];
                         System.out.println("驗證登入中: " + email);
 
-                        String userId = ServerSupabaseHelper.loginUser(email, password);
+                        // 現在 result 的內容是 "uuid:username"
+                        String result = ServerSupabaseHelper.loginUser(email, password);
 
-                        if (userId != null) {
-                            // ★★★ 關鍵修改開始 ★★★
-                            this.myUserId = userId; // 1. 記住我是誰
-                            ServerMain.onlineUsers.put(userId, this); // 2. 把自己寫到「牆上白板」
+                        if (result != null) {
+                            // 解析回傳的結果
+                            String[] resultParts = result.split(":");
+                            String userId = resultParts[0];
+                            String userName = (resultParts.length > 1) ? resultParts[1] : "使用者";
 
-                            out.println("LOGIN_SUCCESS:" + userId);
-                            System.out.println("使用者上線: " + userId);
-                            // ★★★ 關鍵修改結束 ★★★
+                            this.myUserId = userId;
+                            ServerMain.onlineUsers.put(userId, this);
+
+                            // ★ 修改重點：回傳給 App 時帶上名字
+                            // 格式：LOGIN_SUCCESS:uuid:username
+                            out.println("LOGIN_SUCCESS:" + userId + ":" + userName);
+
+                            System.out.println("使用者上線: " + userName + " (" + userId + ")");
                         } else {
                             out.println("LOGIN_FAIL");
                         }

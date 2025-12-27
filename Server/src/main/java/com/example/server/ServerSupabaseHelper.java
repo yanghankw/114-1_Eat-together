@@ -165,6 +165,7 @@ public class ServerSupabaseHelper {
             HttpClient client = HttpClient.newHttpClient();
             String jsonBody = String.format("{\"email\": \"%s\", \"password\": \"%s\"}", email, password);
 
+            // 1. 先進行 Auth 驗證
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(PROJECT_URL + "/auth/v1/token?grant_type=password"))
                     .header("Content-Type", "application/json")
@@ -175,11 +176,18 @@ public class ServerSupabaseHelper {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() == 200) {
-                // ★ 成功！從 JSON 裡抓出 User ID
-                // (利用之前寫過的 extractValueFromJson 工具)
-                return extractValueFromJson(response.body(), "id");
+                // 2. 登入成功，抓取 User ID (UUID)
+                String userId = extractValueFromJson(response.body(), "id");
+
+                if (userId != null) {
+                    // 3. ★ 關鍵新增：拿著 ID 去查詢 users 資料表裡面的 username
+                    String userName = getUserName(userId); // 使用您現有的 getUserName 方法
+
+                    // 4. 回傳格式改為 "ID:名字"
+                    return userId + ":" + userName;
+                }
             }
-            return null; // 失敗回傳 null
+            return null;
 
         } catch (Exception e) {
             e.printStackTrace();
