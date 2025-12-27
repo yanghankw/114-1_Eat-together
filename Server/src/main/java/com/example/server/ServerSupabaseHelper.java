@@ -304,4 +304,109 @@ public class ServerSupabaseHelper {
         }
         return "[]";
     }
+
+    // ... imports ...
+
+    // ★ 新增：儲存群組訊息
+    public static boolean saveGroupMessage(String groupId, String senderId, String content) {
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+            String jsonBody = String.format(
+                    "{\"group_id\": %s, \"sender_id\": \"%s\", \"content\": \"%s\"}",
+                    groupId, senderId, content
+            ); // 注意: group_id 是數字，不用引號
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(PROJECT_URL + "/rest/v1/group_messages"))
+                    .header("Content-Type", "application/json")
+                    .header("apikey", API_KEY)
+                    .header("Authorization", "Bearer " + API_KEY)
+                    .header("Prefer", "return=minimal")
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            return response.statusCode() == 201;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    // ★ 新增：取得群組內的所有成員 ID (用來廣播訊息)
+    public static java.util.List<String> getGroupMemberIds(String groupId) {
+        java.util.List<String> memberIds = new java.util.ArrayList<>();
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+            // 查詢 group_members 表
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(PROJECT_URL + "/rest/v1/group_members?group_id=eq." + groupId + "&select=user_id"))
+                    .header("apikey", API_KEY)
+                    .header("Authorization", "Bearer " + API_KEY)
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 200) {
+                // 簡單解析 JSON: [{"user_id": "uuid1"}, {"user_id": "uuid2"}]
+                String json = response.body();
+                String[] parts = json.split("\"user_id\":\"");
+                for (int i = 1; i < parts.length; i++) {
+                    String uuid = parts[i].split("\"")[0];
+                    memberIds.add(uuid);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return memberIds;
+    }
+
+    // ★ 新增：建立群組 (簡單版，只回傳是否成功)
+    // 參數: groupName, creatorId (建立者也會自動加入成員)
+    public static String createGroup(String groupName, String creatorId) {
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+
+            // 1. 先建立 Group，並要求回傳 ID
+            String jsonBody = String.format("{\"name\": \"%s\"}", groupName);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(PROJECT_URL + "/rest/v1/groups"))
+                    .header("Content-Type", "application/json")
+                    .header("apikey", API_KEY)
+                    .header("Authorization", "Bearer " + API_KEY)
+                    .header("Prefer", "return=representation") // 要求回傳剛建立的資料
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 201) {
+                // 解析出 group_id
+                String groupId = extractValueFromJson(response.body(), "id"); // 假設 id 是數字
+                // 如果 extractValueFromJson 只抓字串，可能要修一下，或是直接用 replace 處理數字
+                // 這裡假設您的 extractValueFromJson 可以處理
+
+                // 2. 把建立者加入 group_members
+                joinGroup(groupId, creatorId);
+                return groupId;
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+        return null;
+    }
+
+    public static void joinGroup(String groupId, String userId) {
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+            String jsonBody = String.format("{\"group_id\": %s, \"user_id\": \"%s\"}", groupId, userId);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(PROJECT_URL + "/rest/v1/group_members"))
+                    .header("Content-Type", "application/json")
+                    .header("apikey", API_KEY)
+                    .header("Authorization", "Bearer " + API_KEY)
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .build();
+            client.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (Exception e) {}
+    }
 }

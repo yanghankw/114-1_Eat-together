@@ -130,7 +130,49 @@ public class ClientHandler implements Runnable {
                         out.println("HISTORY_JSON:" + historyJson);
                     }
                 }
+                // ★ 新增：處理群組訊息
+                else if (message.startsWith("GROUP_MSG:")) {
+                    // 格式: GROUP_MSG:群組ID:內容
+                    String[] parts = message.split(":", 3);
+                    if (parts.length == 3 && myUserId != null) {
+                        String groupId = parts[1];
+                        String content = parts[2];
 
+                        System.out.println("群組 " + groupId + " 收到訊息: " + content);
+
+                        // 1. 存入資料庫
+                        ServerSupabaseHelper.saveGroupMessage(groupId, myUserId, content);
+
+                        // 2. 找出群組所有成員
+                        java.util.List<String> members = ServerSupabaseHelper.getGroupMemberIds(groupId);
+
+                        // 3. 廣播給所有線上成員
+                        for (String memberId : members) {
+                            // 不用傳給自己 (或是您想傳也可以，看 UI 設計)
+                            if (memberId.equals(myUserId)) continue;
+
+                            ClientHandler handler = ServerMain.onlineUsers.get(memberId);
+                            if (handler != null) {
+                                // 傳送格式: NEW_GROUP_MSG:群組ID:發送者ID:內容
+                                handler.sendMessage("NEW_GROUP_MSG:" + groupId + ":" + myUserId + ":" + content);
+                            }
+                        }
+                    }
+                }
+                // ★ 新增：建立群組指令
+                else if (message.startsWith("CREATE_GROUP:")) {
+                    // 格式: CREATE_GROUP:群組名
+                    String[] parts = message.split(":", 2);
+                    if (parts.length == 2 && myUserId != null) {
+                        String groupName = parts[1];
+                        String groupId = ServerSupabaseHelper.createGroup(groupName, myUserId);
+                        if (groupId != null) {
+                            out.println("CREATE_GROUP_SUCCESS:" + groupId + ":" + groupName);
+                        } else {
+                            out.println("CREATE_GROUP_FAIL");
+                        }
+                    }
+                }
                 else {
                     out.println("UNKNOWN_COMMAND");
                 }
