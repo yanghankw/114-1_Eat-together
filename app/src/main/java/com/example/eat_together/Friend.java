@@ -1,18 +1,25 @@
 package com.example.eat_together;
 
 public class Friend {
+    private String id;        // 使用者的 UUID
     private String name;
-    private String status;
-    // 這裡為了簡單先用 int 代表圖片資源 ID，未來連線後可改成 String (URL)
-    private int avatarResId;
+    private String email;
+    private int imageResId;    private boolean isFriend; // ★ 新增：是否已經是好友
 
-    public Friend(String name, String status, int avatarResId) {
+    // 建構子
+    public Friend(String id, String name, String email, int imageResId, boolean isFriend) {
+        this.id = id;
         this.name = name;
-        this.status = status;
-        this.avatarResId = avatarResId;
+        this.email = email;
+        this.imageResId = imageResId;
+        this.isFriend = isFriend;
     }
 
+    public String getId() { return id; }
     public String getName() { return name; }
-    public String getStatus() { return status; }
-    public int getAvatarResId() { return avatarResId; }
+    public String getEmail() { return email; }
+    public int getImageResId() { return imageResId; }
+    public boolean isFriend() { return isFriend; }
+
+    public void setFriend(boolean friend) { isFriend = friend; }
 }
