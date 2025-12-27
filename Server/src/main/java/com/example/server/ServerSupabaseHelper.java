@@ -447,10 +447,15 @@ public class ServerSupabaseHelper {
         try {
             HttpClient client = HttpClient.newHttpClient();
 
-            // 查詢 group_messages 表，條件是 group_id = groupId
-            // 依照時間排序
+            // ★ 修改重點：加入 select=*,users(username)
+            // 這代表：我要 group_messages 的所有欄位，外加 users 表裡的 username
+            String queryParams = "group_id=eq." + groupId + "&select=*,users(username)&order=created_at.asc";
+
+            // 為了避免網址裡面的特殊符號 ( , ( ) ) 出問題，建議做一點簡單的編碼取代，或是直接拼字
+            // 如果您的環境對網址比較嚴格，可能需要 URLEncoder，但在這裡我們先直接拼拼看
+
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(PROJECT_URL + "/rest/v1/group_messages?group_id=eq." + groupId + "&order=created_at.asc"))
+                    .uri(URI.create(PROJECT_URL + "/rest/v1/group_messages?" + queryParams))
                     .header("apikey", API_KEY)
                     .header("Authorization", "Bearer " + API_KEY)
                     .GET()
@@ -460,6 +465,8 @@ public class ServerSupabaseHelper {
 
             if (response.statusCode() == 200) {
                 return response.body().replace("\n", "").replace("\r", "");
+            } else {
+                System.out.println("查詢群組歷史失敗: " + response.body());
             }
         } catch (Exception e) {
             e.printStackTrace();
