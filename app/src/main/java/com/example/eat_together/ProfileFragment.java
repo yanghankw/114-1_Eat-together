@@ -252,27 +252,32 @@ public class ProfileFragment extends Fragment {
 
             // 3. 回到主執行緒處理 UI
             getActivity().runOnUiThread(() -> {
-                // ★ 修改判斷邏輯
                 if (response != null && response.startsWith("LOGIN_SUCCESS")) {
-                    // 切割出 UUID
-                    // response 可能是 "LOGIN_SUCCESS:550e8400-..."
+                    // 假設 Server 改成回傳： LOGIN_SUCCESS:userId:userName
                     String[] parts = response.split(":");
-                    if (parts.length == 2) {
-                        String userId = parts[1];
 
-                        // ★ 儲存 ID 到手機 (SharedPreferences)
+                    // 確保拆分出來的長度足夠 (至少要有 ID)
+                    if (parts.length >= 2) {
+                        String userId = parts[1];
+                        // 嘗試取得名字，如果 Server 沒回傳名字，暫時先用 "使用者" 或 email 前綴
+                        String userName = (parts.length >= 3) ? parts[2] : "使用者";
+
+                        // 存入 SharedPreferences (重要！這樣下次 checkLocalLogin 才會正常)
                         android.content.SharedPreferences prefs = requireContext().getSharedPreferences("UserPrefs", android.content.Context.MODE_PRIVATE);
                         prefs.edit()
                                 .putString("user_id", userId)
-                                .putString("user_email", email)     // 記得存 Email
-                                .putString("user_password", password) // ★ 關鍵：存密碼
+                                .putString("user_email", email)
+                                .putString("user_password", password)
+                                .putString("username", userName) // ★ 新增：儲存名字
                                 .apply();
 
                         Toast.makeText(getContext(), "登入成功！", Toast.LENGTH_SHORT).show();
-                        // ... 切換 UI ...
+
                         layoutLogin.setVisibility(View.GONE);
                         layoutProfile.setVisibility(View.VISIBLE);
-                        tvName.setText(userId);
+
+                        // ★ 修正：顯示名字，而不是 ID
+                        tvName.setText(userName);
                         tvEmail.setText(email);
                     }
                 } else {
