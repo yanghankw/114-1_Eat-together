@@ -231,6 +231,12 @@ public class ProfileFragment extends Fragment {
 
     // 3. 登出邏輯
     private void signOut() {
+        // 清除 SharedPreferences (本地登入紀錄)
+        requireContext().getSharedPreferences("UserPrefs", android.content.Context.MODE_PRIVATE)
+                .edit()
+                .clear()
+                .apply();
+
         // 如果是 Google 登入，需要呼叫 Google 的登出
         mGoogleSignInClient.signOut().addOnCompleteListener(requireActivity(), task -> {
             // 清除 UI
