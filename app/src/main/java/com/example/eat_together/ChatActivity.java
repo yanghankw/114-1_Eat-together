@@ -63,7 +63,7 @@ public class ChatActivity extends AppCompatActivity {
 
             if (!content.isEmpty()) {
                 // ★ 記得要把這行加回來，不然您發送的訊息自己看不到
-                addMessageToScreen(content, ChatMessage.TYPE_ME);
+                addMessageToScreen("我", content, ChatMessage.TYPE_ME);
 
                 String tcpMessage = "MSG:" + friendId + ":" + content;
                 android.util.Log.d("ChatDebug", "準備發送: " + tcpMessage);
@@ -131,30 +131,42 @@ public class ChatActivity extends AppCompatActivity {
                 String msg = client.readMessage();
                 if (msg != null) {
 
-                    // A. 私聊訊息
+                    // A. 私聊訊息 (格式更新: NEW_MSG:ID:Name:Content)
                     if (msg.startsWith("NEW_MSG:") && "PRIVATE".equals(chatType)) {
-                        String[] parts = msg.split(":", 3);
-                        String senderId = parts[1];
-                        // 只有當發送者是目前聊天的對象才顯示
-                        if (senderId.equals(targetId)) {
-                            runOnUiThread(() -> addMessageToScreen(parts[2], ChatMessage.TYPE_OTHER));
+                        // 切成 4 段
+                        String[] parts = msg.split(":", 4);
+                        if (parts.length == 4) {
+                            String senderId = parts[1];
+                            String senderName = parts[2]; // ★ 抓出名字
+                            String content = parts[3];    // ★ 這就是您原本缺少的 content 變數
+
+                            if (senderId.equals(targetId)) {
+                                runOnUiThread(() -> addMessageToScreen(senderName, content, ChatMessage.TYPE_OTHER));
+                            }
                         }
                     }
 
-                    // B. ★ 群組訊息
+                    // B. 群組訊息 (格式更新: NEW_GROUP_MSG:GroupID:SenderID:SenderName:Content)
                     else if (msg.startsWith("NEW_GROUP_MSG:") && "GROUP".equals(chatType)) {
-                        // 格式: NEW_GROUP_MSG:群組ID:發送者ID:內容
-                        String[] parts = msg.split(":", 4);
-                        if (parts.length == 4) {
+                        // 切成 5 段
+                        String[] parts = msg.split(":", 5);
+                        if (parts.length == 5) {
                             String msgGroupId = parts[1];
                             String senderId = parts[2];
-                            String content = parts[3];
+                            String senderName = parts[3]; // ★ 抓出名字
+                            String content = parts[4];
 
                             // 只有當訊息屬於目前這個群組，且不是我自己發的
                             if (msgGroupId.equals(targetId) && !senderId.equals(myId)) {
-                                runOnUiThread(() -> addMessageToScreen(content, ChatMessage.TYPE_OTHER));
+                                runOnUiThread(() -> addMessageToScreen(senderName, content, ChatMessage.TYPE_OTHER));
                             }
                         }
+                    }
+
+                    // C. 歷史訊息
+                    else if (msg.startsWith("HISTORY_JSON:")) {
+                        String jsonStr = msg.substring("HISTORY_JSON:".length());
+                        parseHistoryJson(jsonStr);
                     }
                 }
             }
@@ -173,24 +185,31 @@ public class ChatActivity extends AppCompatActivity {
                 String senderId = obj.getString("sender_id");
                 String content = obj.getString("content");
 
-                // 判斷這句話是「我講的」還是「對方講的」
                 int type;
+                String displayName; // ★ 決定要顯示什麼名字
+
                 if (senderId.equals(myId)) {
                     type = ChatMessage.TYPE_ME;
+                    displayName = "我";
                 } else {
                     type = ChatMessage.TYPE_OTHER;
+                    // 如果是私聊，對方的名字就是 friendName
+                    // 如果是群聊，暫時顯示 senderId (或是您可以改成 "成員")
+                    if ("PRIVATE".equals(chatType)) {
+                        displayName = friendName != null ? friendName : "對方";
+                    } else {
+                        displayName = "成員"; // 暫時解法，因為歷史 JSON 還沒包含名字
+                    }
                 }
 
-                historyList.add(new ChatMessage(content, type));
+                // ★ 這裡傳入 3 個參數，修復 "Expected 3 arguments" 錯誤
+                historyList.add(new ChatMessage(displayName, content, type));
             }
 
-            // 更新 UI
             runOnUiThread(() -> {
-                // 把歷史訊息加在最前面，或是清空再加
-                messageList.clear(); // 先清空，避免重複
+                messageList.clear();
                 messageList.addAll(historyList);
                 adapter.notifyDataSetChanged();
-                // 捲動到最底部
                 if (!messageList.isEmpty()) {
                     recyclerView.scrollToPosition(messageList.size() - 1);
                 }
@@ -201,8 +220,9 @@ public class ChatActivity extends AppCompatActivity {
         }
     }
 
-    private void addMessageToScreen(String content, int type) {
-        messageList.add(new ChatMessage(content, type));
+    private void addMessageToScreen(String name, String content, int type) {
+        // ★ 傳入名字
+        messageList.add(new ChatMessage(name, content, type));
         adapter.notifyItemInserted(messageList.size() - 1);
         recyclerView.scrollToPosition(messageList.size() - 1);
     }
@@ -216,13 +236,21 @@ public class ChatActivity extends AppCompatActivity {
     private void loadHistory() {
         new Thread(() -> {
             TcpClient client = TcpClient.getInstance();
-            if (myId == null || friendId == null) return;
+            // ★ 修正 1: 改用 targetId 判斷，不要用 friendId (它是 null)
+            if (myId == null || targetId == null) return;
 
-            // 1. 發送指令
-            // 格式: GET_CHAT_HISTORY:我的ID:對方ID
-            String cmd = "GET_CHAT_HISTORY:" + myId + ":" + friendId;
-            // 這裡我們直接用 sendMessage，然後靠監聽迴圈來收 HISTORY_JSON
-            // (或是您可以用 client.sendRequest 等待回應，這裡示範用監聽接收)
+            String cmd;
+
+            // ★ 修正 2: 根據聊天類型，發送不同的查詢指令
+            if ("GROUP".equals(chatType)) {
+                // 群組歷史: GET_GROUP_HISTORY:群組ID
+                cmd = "GET_GROUP_HISTORY:" + targetId;
+            } else {
+                // 私聊歷史: GET_CHAT_HISTORY:我的ID:對方ID
+                cmd = "GET_CHAT_HISTORY:" + myId + ":" + targetId;
+            }
+
+            android.util.Log.d("ChatDebug", "正在索取歷史紀錄: " + cmd);
             client.sendMessage(cmd);
 
         }).start();

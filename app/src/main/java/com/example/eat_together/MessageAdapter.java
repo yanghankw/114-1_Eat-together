@@ -16,7 +16,6 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         this.messageList = messageList;
     }
 
-    // 關鍵：告訴 RecyclerView 這一行是哪種 Type (自己還是對方)
     @Override
     public int getItemViewType(int position) {
         return messageList.get(position).getType();
@@ -37,30 +36,45 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     @Override
     public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
         ChatMessage msg = messageList.get(position);
+
         if (holder instanceof MeViewHolder) {
-            ((MeViewHolder) holder).tvContent.setText(msg.getContent());
-        } else {
-            ((OtherViewHolder) holder).tvContent.setText(msg.getContent());
+            MeViewHolder meHolder = (MeViewHolder) holder;
+            meHolder.tvContent.setText(msg.getContent());
+            // ★ 設定自己的名字 (也可以寫死 "我")
+            meHolder.tvSenderName.setText(msg.getSenderName());
+
+        } else if (holder instanceof OtherViewHolder) {
+            OtherViewHolder otherHolder = (OtherViewHolder) holder;
+            otherHolder.tvContent.setText(msg.getContent());
+            // ★ 設定對方的名字
+            otherHolder.tvSenderName.setText(msg.getSenderName());
         }
     }
 
     @Override
     public int getItemCount() { return messageList.size(); }
 
-    // 兩個不同的 ViewHolder
+    // --- ViewHolder 修改區 ---
+
     static class MeViewHolder extends RecyclerView.ViewHolder {
         TextView tvContent;
+        TextView tvSenderName; // ★ 新增
+
         MeViewHolder(View view) {
             super(view);
             tvContent = view.findViewById(R.id.tv_msg_content);
+            tvSenderName = view.findViewById(R.id.tv_sender_name); // ★ 綁定 ID
         }
     }
 
     static class OtherViewHolder extends RecyclerView.ViewHolder {
         TextView tvContent;
+        TextView tvSenderName; // ★ 新增
+
         OtherViewHolder(View view) {
             super(view);
             tvContent = view.findViewById(R.id.tv_msg_content);
+            tvSenderName = view.findViewById(R.id.tv_sender_name); // ★ 綁定 ID
         }
     }
 }
