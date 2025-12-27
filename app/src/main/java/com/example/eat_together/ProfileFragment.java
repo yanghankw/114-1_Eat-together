@@ -123,12 +123,36 @@ public class ProfileFragment extends Fragment {
     @Override
     public void onStart() {
         super.onStart();
+
+        // ★ 修改邏輯：先檢查我們自己的登入，再檢查 Google
+        if (checkLocalLogin()) {
+            return; // 如果本地已有登入紀錄，就不用管 Google 了
+        }
         // 檢查是否已經有 Google 登入紀錄
         GoogleSignInAccount account = GoogleSignIn.getLastSignedInAccount(requireContext());
         updateUI(account);
     }
 
     // --- 功能實作區 ---
+
+    // ★ 新增這個方法：檢查 SharedPreferences 裡的紀錄
+    private boolean checkLocalLogin() {
+        android.content.SharedPreferences prefs = requireContext().getSharedPreferences("UserPrefs", android.content.Context.MODE_PRIVATE);
+        String userId = prefs.getString("user_id", null);
+        String userEmail = prefs.getString("user_email", "使用者"); // 建議您在登入成功時順便存 email
+
+        if (userId != null) {
+            // === 有紀錄，直接切換到已登入畫面 ===
+            layoutLogin.setVisibility(View.GONE);
+            layoutProfile.setVisibility(View.VISIBLE);
+
+            tvName.setText("已登入");
+            tvEmail.setText(userEmail);
+            tvBio.setText("歡迎回來！");
+            return true;
+        }
+        return false;
+    }
 
     // 1. Email 登入邏輯
 
@@ -158,18 +182,31 @@ public class ProfileFragment extends Fragment {
 
             // 3. 回到主執行緒處理 UI
             getActivity().runOnUiThread(() -> {
-                if (response != null && response.equals("LOGIN_SUCCESS")) {
-                    // === 登入成功 ===
-                    Toast.makeText(getContext(), "登入成功！", Toast.LENGTH_SHORT).show();
+                // ★ 修改判斷邏輯
+                if (response != null && response.startsWith("LOGIN_SUCCESS")) {
+                    // 切割出 UUID
+                    // response 可能是 "LOGIN_SUCCESS:550e8400-..."
+                    String[] parts = response.split(":");
+                    if (parts.length == 2) {
+                        String userId = parts[1];
 
-                    // 切換畫面
-                    layoutLogin.setVisibility(View.GONE);
-                    layoutProfile.setVisibility(View.VISIBLE);
-                    tvName.setText("TCP 使用者");
-                    tvEmail.setText(email);
+                        // ★ 儲存 ID 到手機 (SharedPreferences)
+                        android.content.SharedPreferences prefs = requireContext().getSharedPreferences("UserPrefs", android.content.Context.MODE_PRIVATE);
+                        prefs.edit()
+                                .putString("user_id", userId)
+                                .putString("user_email", email)     // 記得存 Email
+                                .putString("user_password", password) // ★ 關鍵：存密碼
+                                .apply();
+
+                        Toast.makeText(getContext(), "登入成功！", Toast.LENGTH_SHORT).show();
+                        // ... 切換 UI ...
+                        layoutLogin.setVisibility(View.GONE);
+                        layoutProfile.setVisibility(View.VISIBLE);
+                        tvName.setText("TCP 使用者");
+                        tvEmail.setText(email);
+                    }
                 } else {
-                    // === 登入失敗 ===
-                    Toast.makeText(getContext(), "登入失敗，請檢查帳號密碼", Toast.LENGTH_LONG).show();
+                    Toast.makeText(getContext(), "登入失敗", Toast.LENGTH_SHORT).show();
                 }
             });
         }).start();

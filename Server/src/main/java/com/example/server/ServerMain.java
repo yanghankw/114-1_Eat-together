@@ -3,10 +3,12 @@ package com.example.server; // ⚠️ 注意：請保留您原本的第一行 pa
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ServerMain {
 
     private static final int PORT = 12345;
+    public static ConcurrentHashMap<String, ClientHandler> onlineUsers = new ConcurrentHashMap<>();
 
     public static void main(String[] args) {
         System.out.println("=========================================");
