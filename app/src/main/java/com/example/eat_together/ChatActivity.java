@@ -1,6 +1,7 @@
 package com.example.eat_together;
 
 import android.app.AlertDialog;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.Menu;
@@ -45,10 +46,20 @@ public class ChatActivity extends AppCompatActivity {
     // ★ 2. 處理選單點擊事件
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == R.id.action_invite) {
-            showInviteDialog(); // 顯示輸入框
+        int id = item.getItemId();
+
+        if (id == R.id.action_invite) {
+            showInviteDialog(); // 既有的邀請功能
             return true;
         }
+        // ★ 新增這段：跳轉到地圖頁面建立活動
+        else if (id == R.id.action_create_event) {
+            Intent intent = new Intent(this, MapActivity.class);
+            intent.putExtra("GROUP_ID", targetId); // 把群組 ID 帶過去
+            startActivity(intent);
+            return true;
+        }
+
         return super.onOptionsItemSelected(item);
     }
 
@@ -320,7 +331,6 @@ public class ChatActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        isListening = false;
     }
 
     private void loadHistory() {

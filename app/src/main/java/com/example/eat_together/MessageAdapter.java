@@ -49,6 +49,8 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             // ★ 設定對方的名字
             otherHolder.tvSenderName.setText(msg.getSenderName());
         }
+
+
     }
 
     @Override

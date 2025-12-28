@@ -18,6 +18,8 @@ import android.widget.Button;
 import android.widget.SearchView;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.app.DatePickerDialog; // ★ 新增
+import android.app.TimePickerDialog; // ★ 新增
 
 // Google Location Services
 import com.google.android.gms.location.FusedLocationProviderClient;
@@ -49,6 +51,8 @@ import org.json.JSONObject;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Calendar;           // ★ 新增
+import java.util.Locale;             // ★ 新增
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -78,16 +82,28 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
 
     // 預設地點 (彰化)
     private static final LatLng DEFAULT_LOCATION_CHANGHUA = new LatLng(24.1788, 120.6467);
+    private String groupId; // ★ 新增：用來記錄是哪個群組要辦活動
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_map);
 
+        // ★ 1. 接收群組 ID (從 ChatActivity 傳過來的)
+        groupId = getIntent().getStringExtra("GROUP_ID");
+        if (groupId == null) {
+            // 如果沒有群組ID (可能是直接開啟地圖測試)，可以給個預設值或是提示
+            // groupId = "1"; // 測試用
+        }
+
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
         try {
-            TcpClient.getInstance().connect();
+            if (!TcpClient.getInstance().isConnected()) {
+                TcpClient.getInstance().connect();
+                // 注意：如果真的斷線重連，這裡其實還需要補做自動登入 (Auto Login)
+                // 但通常只要 ChatActivity 沒斷線，這裡就不會進來
+            }
         } catch (Exception e) {
             Log.e("MapActivity", "TCP Error: " + e.getMessage());
         }
@@ -109,19 +125,7 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
 
         btnConfirm.setOnClickListener(v -> {
             if (currentPlaceName.isEmpty()) return;
-            new Thread(() -> {
-                try {
-                    String msg = "NEW_EVENT:" + currentPlaceName + ":" + currentPlaceAddress;
-                    TcpClient.getInstance().sendMessage(msg);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }).start();
-            Toast.makeText(this, "已發送活動通知！", Toast.LENGTH_SHORT).show();
-            Intent intent = new Intent(MapActivity.this, ChatActivity.class);
-            intent.putExtra("PLACE_NAME", currentPlaceName);
-            intent.putExtra("PLACE_ADDRESS", currentPlaceAddress);
-            startActivity(intent);
+            showDateTimePicker();
         });
 
         searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
@@ -249,6 +253,55 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         if (fusedLocationClient != null && locationCallback != null) {
             fusedLocationClient.removeLocationUpdates(locationCallback);
         }
+    }
+
+    // ★★★ 3. 新增：日期與時間選擇器 ★★★
+    private void showDateTimePicker() {
+        Calendar calendar = Calendar.getInstance();
+
+        // A. 先選日期
+        new DatePickerDialog(this, (view, year, month, day) -> {
+
+            // B. 再選時間
+            new TimePickerDialog(this, (timeView, hour, minute) -> {
+
+                // C. 格式化時間 (ISO 8601 格式，例如: 2025-01-01T18:30:00+08:00)
+                // 為了讓 Supabase 準確讀到台灣時間，我們手動加上 +08:00
+                String timeStr = String.format(Locale.getDefault(),
+                        "%04d-%02d-%02dT%02d:%02d:00+08:00",
+                        year, month + 1, day, hour, minute);
+
+                // D. 發送指令
+                sendCreateEvent(timeStr);
+
+            }, calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE), true).show();
+
+        }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH)).show();
+    }
+
+    // ★★★ 4. 新增：發送建立指令 ★★★
+    private void sendCreateEvent(String timeStr) {
+        if (groupId == null) {
+            Toast.makeText(this, "錯誤：無法識別群組 ID", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        new Thread(() -> {
+            try {
+                // 指令格式: CREATE_EVENT:群組ID:餐廳名:時間
+                String cmd = "CREATE_EVENT:" + groupId + ":" + currentPlaceName + ":" + timeStr;
+
+                TcpClient.getInstance().sendMessage(cmd);
+
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "聚餐活動建立成功！", Toast.LENGTH_SHORT).show();
+                    finish(); // 關閉地圖，回到聊天室
+                });
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();
     }
 
     private void fetchWeather(double lat, double lon) {

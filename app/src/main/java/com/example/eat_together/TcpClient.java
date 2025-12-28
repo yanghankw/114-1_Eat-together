@@ -1,6 +1,9 @@
 package com.example.eat_together;
 
 import android.util.Log;
+
+import java.io.BufferedWriter;
+import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.Socket;
 
@@ -26,11 +29,16 @@ public class TcpClient {
 
     // ★ 修改 1: 將連線動作強制放到背景執行緒
     public void connect() {
+        if (isConnected()) {
+            Log.d("TCP", "已經連線中，跳過連線動作");
+            return;
+        }
+
         new Thread(() -> {
             try {
                 // ... 連線 socket ...
                 socket = new Socket(SERVER_IP, SERVER_PORT);
-                out = new PrintWriter(socket.getOutputStream(), true);
+                out = new PrintWriter(new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), "UTF-8")), true);
                 // ★ 新增這行：初始化輸入流，這樣才能聽到 Server 說話
                 in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 

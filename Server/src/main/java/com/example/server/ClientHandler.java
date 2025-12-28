@@ -15,9 +15,12 @@ public class ClientHandler implements Runnable {
 
     @Override
     public void run() {
+        System.out.println("★ 程式碼已更新！UTF-8 模式啟動 ★"); // <--- 加入這行
         try {
-            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            out = new PrintWriter(socket.getOutputStream(), true);
+
+            // ★ 強制指定 UTF-8 編碼，解決中文亂碼問題
+            in = new BufferedReader(new InputStreamReader(socket.getInputStream(), "UTF-8"));
+            out = new PrintWriter(new OutputStreamWriter(socket.getOutputStream(), "UTF-8"), true);
 
             String message;
             while ((message = in.readLine()) != null) {
@@ -258,6 +261,61 @@ public class ClientHandler implements Runnable {
                         } else {
                             out.println("UPDATE_NAME_FAIL");
                         }
+                    }
+                }
+                // A. 建立活動：CREATE_EVENT:群組ID:餐廳名:時間
+                else if (message.startsWith("CREATE_EVENT:")) {
+                    String[] parts = message.split(":", 4);
+
+                    // 先檢查格式
+                    if (parts.length == 4) {
+                        // 再檢查有沒有登入
+                        if (myUserId != null) {
+                            String groupId = parts[1];
+                            String title = parts[2];
+                            String time = parts[3];
+
+                            System.out.println("正在建立活動... 群組:" + groupId + " 標題:" + title); // ★ 加入除錯訊息
+
+                            String eventId = ServerSupabaseHelper.createEvent(groupId, myUserId, title, time);
+
+                            if (eventId != null) {
+                                ServerSupabaseHelper.joinEvent(eventId, myUserId);
+                                String broadcastMsg = "EVENT_MSG:" + groupId + ":" + eventId + ":" + title + ":" + time;
+
+                                java.util.List<String> members = ServerSupabaseHelper.getGroupMemberIds(groupId);
+                                for (String memberId : members) {
+                                    ClientHandler h = ServerMain.onlineUsers.get(memberId);
+                                    if (h != null) h.sendMessage(broadcastMsg);
+                                }
+                                out.println("EVENT_CREATED_SUCCESS"); // ★ 告訴 App 成功了
+                            } else {
+                                out.println("EVENT_CREATE_FAIL:資料庫寫入失敗");
+                            }
+                        } else {
+                            // ★★★ 關鍵修改：如果沒登入，印出錯誤 ★★★
+                            System.err.println("❌ 拒絕建立活動：使用者尚未登入 (myUserId is null)");
+                            out.println("ERROR:請重新登入");
+                        }
+                    } else {
+                        System.err.println("❌ 建立活動失敗：指令格式錯誤 (parts.length=" + parts.length + ")");
+                    }
+                }
+                // B. 加入活動：JOIN_EVENT:活動ID
+                else if (message.startsWith("JOIN_EVENT:")) {
+                    String[] parts = message.split(":");
+                    if (parts.length == 2 && myUserId != null) {
+                        String eventId = parts[1];
+                        boolean success = ServerSupabaseHelper.joinEvent(eventId, myUserId);
+                        if (success) out.println("JOIN_EVENT_SUCCESS");
+                        else out.println("JOIN_EVENT_FAIL");
+                    }
+                }
+                // C. 查詢我的活動：GET_MY_EVENTS
+                else if (message.startsWith("GET_MY_EVENTS")) {
+                    if (myUserId != null) {
+                        String json = ServerSupabaseHelper.getMyEvents(myUserId);
+                        out.println("MY_EVENTS_JSON:" + json);
                     }
                 }
                 else {
