@@ -189,13 +189,19 @@ public class ChatActivity extends AppCompatActivity {
         }
         // 狀況 D: 收到活動/聚餐通知 (EVENT_MSG:ID:Title:Time...)
         else if (msg.startsWith("EVENT_MSG:")) {
+            // 假設 Server 傳來的格式是： EVENT_MSG:群組ID:活動ID:標題:時間
+            // 注意 split 的 limit 設為 5，確保時間後面如果還有字不會被切斷
             String[] parts = msg.split(":", 5);
+
             if (parts.length >= 5) {
-                // String eventId = parts[2]; // 如果需要用到 eventId
-                String title = parts[3];
-                String time = parts[4];
-                // 顯示一個特殊的活動訊息
-                ChatMessage eventMsg = new ChatMessage("聚餐活動", "標題: " + title + "\n時間: " + time, ChatMessage.TYPE_OTHER);
+                String eventId = parts[2]; // 活動 ID
+                String title = parts[3];   // 活動標題
+                String time = parts[4];    // 活動時間
+
+                // ★ 修改點：使用活動專用的建構子 (這樣才會是 TYPE_EVENT)
+                ChatMessage eventMsg = new ChatMessage(eventId, title, time);
+
+                // 加入列表並刷新
                 messageList.add(eventMsg);
                 adapter.notifyItemInserted(messageList.size() - 1);
                 recyclerView.scrollToPosition(messageList.size() - 1);
@@ -258,30 +264,53 @@ public class ChatActivity extends AppCompatActivity {
             for (int i = 0; i < array.length(); i++) {
                 JSONObject obj = array.getJSONObject(i);
 
+                // 1. 先讀取基本欄位
                 String content = obj.getString("content");
                 String senderId = obj.getString("sender_id");
-                // String time = obj.optString("created_at", ""); // 如果需要時間
 
-                int type;
-                String displayName;
+                // ★ 關鍵：讀取資料庫中的類型欄位 (假設欄位名稱是 message_type)
+                // 如果資料庫沒有這個欄位，預設為 "text"
+                String msgTypeStr = obj.optString("message_type", "text");
 
-                if (senderId.equals(myId)) {
-                    type = ChatMessage.TYPE_ME;
-                    displayName = "我";
-                } else {
-                    type = ChatMessage.TYPE_OTHER;
-                    displayName = "對方"; // 預設
+                ChatMessage msg;
 
-                    // 如果是群組，嘗試從 users 物件抓名字
-                    if (!obj.isNull("users")) {
-                        JSONObject userObj = obj.getJSONObject("users");
-                        displayName = userObj.optString("username", "成員");
-                    } else if ("PRIVATE".equals(chatType)) {
-                        displayName = targetName; // 私聊直接用標題名字
+                // 2. 判斷是否為「活動訊息」
+                if ("event".equals(msgTypeStr) || content.startsWith("EVENT:")) {
+                    // 如果類型是 event，我們需要解析 content 裡的內容
+                    // 假設存進資料庫的 content 格式是 "活動ID,標題,時間" (用逗號分隔)
+                    // 或者你可以從 JSON 的其他欄位讀取 (看你後端怎麼存)
+
+                    // 這裡假設 content 存的是 "eventId,title,time"
+                    String[] eventParts = content.split(",", 3);
+                    if (eventParts.length >= 3) {
+                        msg = new ChatMessage(eventParts[0], eventParts[1], eventParts[2]);
+                    } else {
+                        // 防呆：格式錯誤就當普通文字顯示
+                        msg = new ChatMessage("系統錯誤", "無法讀取活動卡片", ChatMessage.TYPE_OTHER);
                     }
+
+                } else {
+                    // 3. 一般文字訊息 (維持原本邏輯)
+                    int type;
+                    String displayName;
+
+                    if (senderId.equals(myId)) {
+                        type = ChatMessage.TYPE_ME;
+                        displayName = "我";
+                    } else {
+                        type = ChatMessage.TYPE_OTHER;
+                        // 判斷名字邏輯...
+                        displayName = "對方";
+                        if (!obj.isNull("users")) {
+                            JSONObject userObj = obj.getJSONObject("users");
+                            displayName = userObj.optString("username", "成員");
+                        } else if ("PRIVATE".equals(chatType)) {
+                            displayName = targetName;
+                        }
+                    }
+                    msg = new ChatMessage(displayName, content, type);
                 }
 
-                ChatMessage msg = new ChatMessage(displayName, content, type);
                 historyList.add(msg);
             }
 

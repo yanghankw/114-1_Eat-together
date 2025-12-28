@@ -281,26 +281,17 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
 
     // ★★★ 4. 新增：發送建立指令 ★★★
     private void sendCreateEvent(String timeStr) {
-        if (groupId == null) {
-            Toast.makeText(this, "錯誤：無法識別群組 ID", Toast.LENGTH_SHORT).show();
-            return;
-        }
+        if (groupId == null) return;
 
         new Thread(() -> {
-            try {
-                // 指令格式: CREATE_EVENT:群組ID:餐廳名:時間
-                String cmd = "CREATE_EVENT:" + groupId + ":" + currentPlaceName + ":" + timeStr;
+            // 只要送出這行指令，剩下的事情 Server 會全包！
+            String cmd = "CREATE_EVENT:" + groupId + ":" + currentPlaceName + ":" + timeStr;
+            TcpClient.getInstance().sendMessage(cmd);
 
-                TcpClient.getInstance().sendMessage(cmd);
-
-                runOnUiThread(() -> {
-                    Toast.makeText(this, "聚餐活動建立成功！", Toast.LENGTH_SHORT).show();
-                    finish(); // 關閉地圖，回到聊天室
-                });
-
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+            runOnUiThread(() -> {
+                // 這裡可以做簡單的 UI 提示，或者等收到 Server 回傳 EVENT_CREATED_SUCCESS 再關閉
+                finish();
+            });
         }).start();
     }
 
