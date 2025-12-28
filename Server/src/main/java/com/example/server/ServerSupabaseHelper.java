@@ -551,4 +551,33 @@ public class ServerSupabaseHelper {
         }
         return "[]";
     }
+
+    // ★ 新增：獲取某個 User 參加的所有群組
+    public static String getUserGroups(String userId) {
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+
+            // 語法解釋：
+            // 1. 找 group_members 表
+            // 2. 條件: user_id = userId
+            // 3. select: 抓出 group_id，順便把 groups 表的 name 也抓出來
+            String query = "user_id=eq." + userId + "&select=group_id,groups(name)";
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(PROJECT_URL + "/rest/v1/group_members?" + query))
+                    .header("apikey", API_KEY)
+                    .header("Authorization", "Bearer " + API_KEY)
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 200) {
+                return response.body().replace("\n", "").replace("\r", "");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return "[]";
+    }
 }

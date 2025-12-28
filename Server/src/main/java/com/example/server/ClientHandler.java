@@ -185,7 +185,16 @@ public class ClientHandler implements Runnable {
                         }
                     }
                 }
-
+                // ★ 新增：獲取我的群組列表
+                else if (message.startsWith("GET_MY_GROUPS:")) {
+                    // 格式: GET_MY_GROUPS:我的ID
+                    String[] parts = message.split(":");
+                    if (parts.length == 2) {
+                        String myId = parts[1];
+                        String groupsJson = ServerSupabaseHelper.getUserGroups(myId);
+                        out.println("GROUPS_JSON:" + groupsJson);
+                    }
+                }
                 // ★★★ 在這裡插入 UPDATE_NAME 的邏輯 ★★★
                 else if (message.startsWith("UPDATE_NAME:")) {
                     // 指令格式: UPDATE_NAME:使用者UUID:新名字
@@ -206,7 +215,6 @@ public class ClientHandler implements Runnable {
                         }
                     }
                 }
-
                 else {
                     out.println("UNKNOWN_COMMAND");
                 }
