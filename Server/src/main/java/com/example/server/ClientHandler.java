@@ -214,6 +214,32 @@ public class ClientHandler implements Runnable {
                         out.println("GROUPS_JSON:" + groupsJson);
                     }
                 }
+                else if (message.startsWith("INVITE_MEMBER:")) {
+                    String[] parts = message.split(":");
+                    if (parts.length == 3) {
+                        String groupId = parts[1];
+                        String targetEmail = parts[2];
+
+                        System.out.println("收到邀請請求: Group " + groupId + " -> Email " + targetEmail);
+
+                        // 1. 先把 Email 轉成 UUID
+                        String targetUuid = ServerSupabaseHelper.getUserIdByEmail(targetEmail);
+
+                        if (targetUuid != null) {
+                            // 2. 呼叫現有的 joinGroup 方法
+                            boolean success = ServerSupabaseHelper.joinGroup(groupId, targetUuid);
+
+                            if (success) {
+                                out.println("INVITE_SUCCESS");
+                                // (選用) 這裡可以再發送一個 System Message 到群組，說 "xxx 已加入群組"
+                            } else {
+                                out.println("INVITE_FAIL:加入失敗");
+                            }
+                        } else {
+                            out.println("INVITE_FAIL:找不到該Email使用者");
+                        }
+                    }
+                }
                 // ★★★ 在這裡插入 UPDATE_NAME 的邏輯 ★★★
                 else if (message.startsWith("UPDATE_NAME:")) {
                     // 指令格式: UPDATE_NAME:使用者UUID:新名字

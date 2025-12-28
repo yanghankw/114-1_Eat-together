@@ -1,9 +1,14 @@
 package com.example.eat_together;
 
+import android.app.AlertDialog;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.Toast;
+
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -28,13 +33,48 @@ public class ChatActivity extends AppCompatActivity {
     private String targetId; // 如果是私聊就是 friendId，如果是群聊就是 groupId
 
     @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // 只有是群組 ("GROUP") 才顯示邀請按鈕
+        if ("GROUP".equals(chatType)) {
+            getMenuInflater().inflate(R.menu.chat_menu, menu);
+            return true;
+        }
+        return super.onCreateOptionsMenu(menu);
+    }
+
+    // ★ 2. 處理選單點擊事件
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == R.id.action_invite) {
+            showInviteDialog(); // 顯示輸入框
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_chat);
 
+        // ★★★ 加入這幾行來設定 Toolbar ★★★
+        androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar); // 這句話是關鍵！啟動標題列功能
+
+        // 設定標題
+        if (getSupportActionBar() != null) {
+            if (friendName != null) {
+                getSupportActionBar().setTitle(friendName);
+            }
+            // 顯示返回鍵 (選用)
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            toolbar.setNavigationOnClickListener(v -> finish());
+        }
+
         // 1. 接收 Intent 參數
         // 預設是 PRIVATE (為了相容舊程式碼)
         chatType = getIntent().getStringExtra("CHAT_TYPE");
+        android.util.Log.d("ActivityDebug", "收到 CHAT_TYPE: " + chatType); // ★ 加這行 Log
         if (chatType == null) chatType = "PRIVATE";
 
         // 把原本的 friendId 改名為 targetId 會比較通用，但為了少改code，我們先這樣用：
@@ -125,6 +165,38 @@ public class ChatActivity extends AppCompatActivity {
         }).start();
     }
 
+    // ★ 1. 建立右上角選單
+
+
+    // ★ 3. 顯示輸入 Email 的對話框
+    private void showInviteDialog() {
+        final EditText input = new EditText(this);
+        input.setHint("請輸入好友的 Email");
+
+        new AlertDialog.Builder(this)
+                .setTitle("邀請成員")
+            .setMessage("請輸入對方的註冊 Email：")
+            .setView(input)
+            .setPositiveButton("邀請", (dialog, which) -> {
+                String email = input.getText().toString().trim();
+                if (!email.isEmpty()) {
+                    sendInviteCommand(email);
+                }
+            })
+            .setNegativeButton("取消", null)
+            .show();
+    }
+
+    // ★ 4. 發送 TCP 指令給 Server
+    private void sendInviteCommand(String targetEmail) {
+        new Thread(() -> {
+            TcpClient client = TcpClient.getInstance();
+            // 格式: INVITE_MEMBER:群組ID:Email
+            String cmd = "INVITE_MEMBER:" + targetId + ":" + targetEmail;
+            client.sendMessage(cmd);
+        }).start();
+    }
+
     private void startListeningForMessages() {
         new Thread(() -> {
             TcpClient client = TcpClient.getInstance();
@@ -168,6 +240,18 @@ public class ChatActivity extends AppCompatActivity {
                     else if (msg.startsWith("HISTORY_JSON:")) {
                         String jsonStr = msg.substring("HISTORY_JSON:".length());
                         parseHistoryJson(jsonStr);
+                    }
+
+                    else if (msg.equals("INVITE_SUCCESS")) {
+                        runOnUiThread(() ->
+                                Toast.makeText(ChatActivity.this, "邀請成功！", Toast.LENGTH_SHORT).show()
+                        );
+                    }
+                    else if (msg.startsWith("INVITE_FAIL:")) {
+                        String reason = msg.split(":")[1];
+                        runOnUiThread(() ->
+                                Toast.makeText(ChatActivity.this, "失敗: " + reason, Toast.LENGTH_SHORT).show()
+                        );
                     }
                 }
             }

@@ -624,4 +624,30 @@ public class ServerSupabaseHelper {
             return false;
         }
     }
+
+    // ★ 新增：透過 Email 查詢 User UUID
+    public static String getUserIdByEmail(String email) {
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+            // 查詢 users 表
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(PROJECT_URL + "/rest/v1/users?email=eq." + email + "&select=id"))
+                    .header("apikey", API_KEY)
+                    .header("Authorization", "Bearer " + API_KEY)
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 200) {
+                // 回傳格式 [{"id": "uuid..."}]
+                return extractValueFromJson(response.body(), "id");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+// (你的程式碼應該已經有 extractValueFromJson，如果沒有，請確認一下 helper 類別裡有這個工具)
 }

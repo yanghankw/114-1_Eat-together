@@ -36,13 +36,20 @@ public class ChatsAdapter extends RecyclerView.Adapter<ChatsAdapter.ViewHolder> 
         holder.tvTime.setText(session.getTime());
         holder.ivAvatar.setImageResource(session.getAvatarResId());
 
+
         holder.itemView.setOnClickListener(v -> {
+            android.util.Log.d("AdapterDebug", "點擊了: " + session.getName() + ", 類型是: " + session.getType());
             Intent intent = new Intent(context, ChatActivity.class);
 
-            // ★ 關鍵修改：根據 session 的 type 傳值
-            intent.putExtra("CHAT_TYPE", session.getType());
-            intent.putExtra("FRIEND_ID", session.getId()); // 這裡傳的是 ID (不管是好友UUID還是群組ID)
+            // 1. 傳送 ID (給 ChatActivity 的 targetId)
+            intent.putExtra("FRIEND_ID", session.getId());
+
+            // 2. 傳送 名稱 (給 ChatActivity 的標題)
             intent.putExtra("FRIEND_NAME", session.getName());
+
+            // 3. ★ 最重要的一步：傳送聊天類型 (ChatActivity 才能決定要不要顯示邀請按鈕)
+            // 假設你的 ChatSession 有一個 getType() 方法回傳 "GROUP" 或 "PRIVATE"
+            intent.putExtra("CHAT_TYPE", session.getType());
 
             context.startActivity(intent);
         });
