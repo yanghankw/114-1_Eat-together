@@ -730,4 +730,40 @@ public class ServerSupabaseHelper {
         } catch (Exception e) { e.printStackTrace(); }
         return "[]";
     }
+
+    // ★★★ 新增：建立活動後，自動寫入一筆通知到聊天室歷史紀錄 ★★★
+    public static boolean saveEventMessageToChat(String groupId, String senderId, String eventId, String title, String time) {
+        try {
+            // 1. 組合特殊的 content 格式 (ID,標題,時間) 讓 App 端解析
+            String content = eventId + "," + title + "," + time;
+
+            // 2. 準備 JSON (注意這裡多了 message_type: "event")
+            String jsonBody = String.format(
+                    "{\"group_id\": %s, \"sender_id\": \"%s\", \"content\": \"%s\", \"message_type\": \"event\"}",
+                    groupId, senderId, content
+            );
+
+            okhttp3.RequestBody body = okhttp3.RequestBody.create(jsonBody, JSON);
+            okhttp3.Request request = new okhttp3.Request.Builder()
+                    .url(PROJECT_URL + "/rest/v1/group_messages")
+                    .header("apikey", API_KEY)
+                    .header("Authorization", "Bearer " + API_KEY)
+                    .header("Prefer", "return=minimal")
+                    .post(body)
+                    .build();
+
+            try (okhttp3.Response response = okHttpClient.newCall(request).execute()) {
+                if (response.isSuccessful()) {
+                    System.out.println("✅ 活動通知已寫入聊天室歷史: " + title);
+                    return true;
+                } else {
+                    System.err.println("❌ 寫入聊天室歷史失敗: " + response.body().string());
+                    return false;
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
 }

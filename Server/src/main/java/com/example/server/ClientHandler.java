@@ -267,38 +267,42 @@ public class ClientHandler implements Runnable {
                 else if (message.startsWith("CREATE_EVENT:")) {
                     String[] parts = message.split(":", 4);
 
-                    // 先檢查格式
                     if (parts.length == 4) {
-                        // 再檢查有沒有登入
                         if (myUserId != null) {
                             String groupId = parts[1];
                             String title = parts[2];
                             String time = parts[3];
 
-                            System.out.println("正在建立活動... 群組:" + groupId + " 標題:" + title); // ★ 加入除錯訊息
+                            System.out.println("正在建立活動... 群組:" + groupId + " 標題:" + title);
 
+                            // 1. 建立活動 (寫入 events 表)
                             String eventId = ServerSupabaseHelper.createEvent(groupId, myUserId, title, time);
 
                             if (eventId != null) {
+                                // 2. 自動加入活動
                                 ServerSupabaseHelper.joinEvent(eventId, myUserId);
-                                String broadcastMsg = "EVENT_MSG:" + groupId + ":" + eventId + ":" + title + ":" + time;
 
+                                // ★★★ 修改重點 3：自動寫入聊天室歷史 (group_messages) ★★★
+                                ServerSupabaseHelper.saveEventMessageToChat(groupId, myUserId, eventId, title, time);
+
+                                // 4. TCP 廣播給線上使用者 (即時通知)
+                                String broadcastMsg = "EVENT_MSG:" + groupId + ":" + eventId + ":" + title + ":" + time;
                                 java.util.List<String> members = ServerSupabaseHelper.getGroupMemberIds(groupId);
                                 for (String memberId : members) {
                                     ClientHandler h = ServerMain.onlineUsers.get(memberId);
                                     if (h != null) h.sendMessage(broadcastMsg);
                                 }
-                                out.println("EVENT_CREATED_SUCCESS"); // ★ 告訴 App 成功了
+
+                                out.println("EVENT_CREATED_SUCCESS");
                             } else {
                                 out.println("EVENT_CREATE_FAIL:資料庫寫入失敗");
                             }
                         } else {
-                            // ★★★ 關鍵修改：如果沒登入，印出錯誤 ★★★
-                            System.err.println("❌ 拒絕建立活動：使用者尚未登入 (myUserId is null)");
+                            System.err.println("❌ 拒絕建立活動：使用者尚未登入");
                             out.println("ERROR:請重新登入");
                         }
                     } else {
-                        System.err.println("❌ 建立活動失敗：指令格式錯誤 (parts.length=" + parts.length + ")");
+                        System.err.println("❌ 建立活動失敗：格式錯誤");
                     }
                 }
                 // B. 加入活動：JOIN_EVENT:活動ID
