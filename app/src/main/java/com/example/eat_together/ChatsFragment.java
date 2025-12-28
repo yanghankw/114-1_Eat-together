@@ -173,32 +173,51 @@ public class ChatsFragment extends Fragment {
                 JSONObject obj = jsonArray.getJSONObject(i);
                 String id = "";
                 String name = "";
+                String lastMsg = "點擊開始聊天"; // 預設值
+                String time = "";
 
+                // 修改私聊 (PRIVATE) 的解析邏輯
                 if ("PRIVATE".equals(type)) {
-                    // 解析好友 JSON 結構
+                    // 讀取新的欄位 (對應 SQL View)
                     name = obj.optString("friend_name", "未知好友");
                     id = obj.optString("friend_id");
-                } else {
-                    // 解析群組 JSON 結構
-                    // Supabase 回傳長這樣: [{"group_id": 1, "groups": {"name": "美食團"}}]
-                    id = String.valueOf(obj.optInt("group_id")); // 群組 ID 是數字
 
-                    JSONObject groupObj = obj.optJSONObject("groups");
-                    if (groupObj != null) {
-                        name = groupObj.optString("name", "未命名群組");
-                    } else {
-                        name = "群組 " + id;
+                    // 讀取最後訊息
+                    if (!obj.isNull("last_msg")) {
+                        lastMsg = obj.getString("last_msg");
+                    }
+
+                    // 讀取時間
+                    if (!obj.isNull("last_time")) {
+                        String rawTime = obj.getString("last_time");
+                        time = formatDisplayTime(rawTime); // 直接轉換成「今天」、「昨天」或「日期」
+                    }
+
+                } else { // GROUP
+                    // ★★★ 群組邏輯修改 ★★★
+                    // 因為我們改了 View，現在 JSON 結構變扁平了，直接在 obj 這一層
+                    id = String.valueOf(obj.optInt("group_id"));
+                    name = obj.optString("group_name", "群組 " + id);
+
+                    // ★ 讀取最後訊息 (如果沒有就顯示預設)
+                    if (!obj.isNull("last_msg")) {
+                        lastMsg = obj.getString("last_msg");
+                    }
+
+                    // ★ 讀取時間
+                    if (!obj.isNull("last_time")) {
+                        String rawTime = obj.getString("last_time");
+                        time = formatDisplayTime(rawTime); // 直接轉換成「今天」、「昨天」或「日期」
                     }
                 }
 
-                // 加入列表 (icon 可以根據 type 換不同的圖)
-                int iconRes = "GROUP".equals(type) ? R.drawable.ic_launcher_foreground : R.drawable.ic_person; // 暫時用內建圖
+                // 加入列表
+                int iconRes = "GROUP".equals(type) ? R.drawable.ic_launcher_foreground : R.drawable.ic_person;
 
-                // ★ 這裡傳入 type
-                tempAddList.add(new ChatSession(id, name, "點擊查看訊息", "剛剛", iconRes, type));
+                // ★ 將 lastMsg 和 time 傳入
+                tempAddList.add(new ChatSession(id, name, lastMsg, time, iconRes, type));
             }
 
-            // 更新 UI (使用 addAll 累加資料)
             getActivity().runOnUiThread(() -> {
                 chatList.addAll(tempAddList);
                 adapter.notifyDataSetChanged();
@@ -206,6 +225,60 @@ public class ChatsFragment extends Fragment {
 
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+    // ★★★ 新增：智慧時間格式化工具 ★★★
+    private String formatDisplayTime(String rawTime) {
+        if (rawTime == null || rawTime.isEmpty()) return "";
+
+        try {
+            // 1. 預處理字串：把 "T" 換成空白，並去除毫秒 (如果有小數點)
+            // 輸入可能像: "2025-12-28T16:20:30.123" 或 "2025-12-28 16:20:30"
+            String cleanTime = rawTime.replace("T", " ");
+            if (cleanTime.contains(".")) {
+                cleanTime = cleanTime.substring(0, cleanTime.indexOf("."));
+            }
+
+            // 2. 解析時間
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault());
+            java.util.Date msgDate = sdf.parse(cleanTime);
+            java.util.Date now = new java.util.Date();
+
+            // 3. 使用 Calendar 比較日期
+            java.util.Calendar calMsg = java.util.Calendar.getInstance();
+            calMsg.setTime(msgDate);
+
+            java.util.Calendar calNow = java.util.Calendar.getInstance();
+            calNow.setTime(now);
+
+            boolean isSameYear = calMsg.get(java.util.Calendar.YEAR) == calNow.get(java.util.Calendar.YEAR);
+            boolean isSameDay = isSameYear && (calMsg.get(java.util.Calendar.DAY_OF_YEAR) == calNow.get(java.util.Calendar.DAY_OF_YEAR));
+            boolean isYesterday = isSameYear && (calMsg.get(java.util.Calendar.DAY_OF_YEAR) == calNow.get(java.util.Calendar.DAY_OF_YEAR) - 1);
+
+            // 4. 決定顯示格式
+            if (isSameDay) {
+                // 如果是今天 -> 顯示 "16:20"
+                java.text.SimpleDateFormat timeFormat = new java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault());
+                return timeFormat.format(msgDate);
+            } else if (isYesterday) {
+                // 如果是昨天 -> 顯示 "昨天" (或是 "昨天 16:20" 看你喜好)
+                return "昨天";
+            } else if (isSameYear) {
+                // 如果是今年 -> 顯示 "12/28"
+                java.text.SimpleDateFormat monthDayFormat = new java.text.SimpleDateFormat("MM/dd", java.util.Locale.getDefault());
+                return monthDayFormat.format(msgDate);
+            } else {
+                // 如果是跨年了 -> 顯示 "2024/12/31"
+                java.text.SimpleDateFormat yearFormat = new java.text.SimpleDateFormat("yyyy/MM/dd", java.util.Locale.getDefault());
+                return yearFormat.format(msgDate);
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            // 如果解析失敗，回傳原本的簡單切割 (當作備案)
+            if (rawTime.length() > 16) return rawTime.substring(11, 16);
+            return rawTime;
         }
     }
 }
