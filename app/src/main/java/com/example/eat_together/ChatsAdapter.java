@@ -36,12 +36,12 @@ public class ChatsAdapter extends RecyclerView.Adapter<ChatsAdapter.ViewHolder> 
         holder.tvTime.setText(session.getTime());
         holder.ivAvatar.setImageResource(session.getAvatarResId());
 
-        // 設定點擊事件
         holder.itemView.setOnClickListener(v -> {
-            Intent intent = new Intent(context, ChatActivity.class); // 假設您的聊天頁面叫 ChatActivity
+            Intent intent = new Intent(context, ChatActivity.class);
 
-            // ★ 關鍵：把對方的 ID 和名字都傳過去
-            intent.putExtra("FRIEND_ID", session.getFriendId());
+            // ★ 關鍵修改：根據 session 的 type 傳值
+            intent.putExtra("CHAT_TYPE", session.getType());
+            intent.putExtra("FRIEND_ID", session.getId()); // 這裡傳的是 ID (不管是好友UUID還是群組ID)
             intent.putExtra("FRIEND_NAME", session.getName());
 
             context.startActivity(intent);
