@@ -11,10 +11,14 @@ public class ServerMain {
     public static ConcurrentHashMap<String, ClientHandler> onlineUsers = new ConcurrentHashMap<>();
 
     public static void main(String[] args) {
-        System.out.println("=========================================");
-        System.out.println("Server starting...");
-        System.out.println("Waiting for connection on Port " + PORT + "...");
-        System.out.println("=========================================");
+        try {
+            System.setOut(new java.io.PrintStream(System.out, true, "UTF-8"));
+            System.setErr(new java.io.PrintStream(System.err, true, "UTF-8"));
+        } catch (java.io.UnsupportedEncodingException e) {
+            e.printStackTrace();
+        }
+
+        System.out.println("★ Server 啟動中... (強制 UTF-8 模式) ★");
 
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
 

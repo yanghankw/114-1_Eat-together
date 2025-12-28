@@ -652,5 +652,118 @@ public class ServerSupabaseHelper {
         return null;
     }
 
-// (你的程式碼應該已經有 extractValueFromJson，如果沒有，請確認一下 helper 類別裡有這個工具)
+    // 1. 建立活動 (回傳 event_id)
+    public static String createEvent(String groupId, String creatorId, String title, String timeStr) {
+        try {
+            // 1. 確保時間格式正確 (Supabase 有時不喜歡 +08:00 的 + 號沒被 URL encode，但在 JSON Body 應該沒事)
+            // 我們先把 jsonBody 印出來檢查
+            String jsonBody = String.format(
+                    "{\"group_id\": %s, \"creator_id\": \"%s\", \"title\": \"%s\", \"event_time\": \"%s\"}",
+                    groupId, creatorId, title, timeStr
+            );
+
+            // ★ Debug: 印出我要送什麼給 Supabase (檢查這裡是不是亂碼)
+            System.out.println("準備發送 JSON: " + jsonBody);
+
+            okhttp3.RequestBody body = okhttp3.RequestBody.create(jsonBody, JSON);
+            okhttp3.Request request = new okhttp3.Request.Builder()
+                    .url(PROJECT_URL + "/rest/v1/events")
+                    .header("apikey", API_KEY)
+                    .header("Authorization", "Bearer " + API_KEY)
+                    .header("Prefer", "return=representation")
+                    .post(body)
+                    .build();
+
+            try (okhttp3.Response response = okHttpClient.newCall(request).execute()) {
+                if (response.isSuccessful()) {
+                    String resp = response.body().string();
+                    System.out.println("✅ Supabase 回應成功: " + resp);
+
+                    java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\"id\":\\s*(\\d+)");
+                    java.util.regex.Matcher matcher = pattern.matcher(resp);
+                    if (matcher.find()) return matcher.group(1);
+                } else {
+                    // ★★★ 關鍵：如果失敗，印出原因 ★★★
+                    String errorMsg = response.body() != null ? response.body().string() : "null";
+                    System.err.println("❌ 建立失敗! Code: " + response.code());
+                    System.err.println("❌ 錯誤原因: " + errorMsg);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    // 2. 加入活動
+    public static boolean joinEvent(String eventId, String userId) {
+        try {
+            String jsonBody = String.format("{\"event_id\": %s, \"user_id\": \"%s\"}", eventId, userId);
+            okhttp3.RequestBody body = okhttp3.RequestBody.create(jsonBody, JSON);
+            okhttp3.Request request = new okhttp3.Request.Builder()
+                    .url(PROJECT_URL + "/rest/v1/event_participants")
+                    .header("apikey", API_KEY)
+                    .header("Authorization", "Bearer " + API_KEY)
+                    .post(body)
+                    .build();
+
+            try (okhttp3.Response response = okHttpClient.newCall(request).execute()) {
+                // 201 Created 或 409 Conflict (已加入) 都算成功
+                return response.isSuccessful() || response.code() == 409;
+            }
+        } catch (Exception e) { e.printStackTrace(); return false; }
+    }
+
+    // 3. 獲取我的活動列表
+    public static String getMyEvents(String userId) {
+        try {
+            okhttp3.Request request = new okhttp3.Request.Builder()
+                    .url(PROJECT_URL + "/rest/v1/view_my_events?me_id=eq." + userId)
+                    .header("apikey", API_KEY)
+                    .header("Authorization", "Bearer " + API_KEY)
+                    .get()
+                    .build();
+
+            try (okhttp3.Response response = okHttpClient.newCall(request).execute()) {
+                if (response.isSuccessful()) return response.body().string().replace("\n", "");
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+        return "[]";
+    }
+
+    // ★★★ 新增：建立活動後，自動寫入一筆通知到聊天室歷史紀錄 ★★★
+    public static boolean saveEventMessageToChat(String groupId, String senderId, String eventId, String title, String time) {
+        try {
+            // 1. 組合特殊的 content 格式 (ID,標題,時間) 讓 App 端解析
+            String content = eventId + "," + title + "," + time;
+
+            // 2. 準備 JSON (注意這裡多了 message_type: "event")
+            String jsonBody = String.format(
+                    "{\"group_id\": %s, \"sender_id\": \"%s\", \"content\": \"%s\", \"message_type\": \"event\"}",
+                    groupId, senderId, content
+            );
+
+            okhttp3.RequestBody body = okhttp3.RequestBody.create(jsonBody, JSON);
+            okhttp3.Request request = new okhttp3.Request.Builder()
+                    .url(PROJECT_URL + "/rest/v1/group_messages")
+                    .header("apikey", API_KEY)
+                    .header("Authorization", "Bearer " + API_KEY)
+                    .header("Prefer", "return=minimal")
+                    .post(body)
+                    .build();
+
+            try (okhttp3.Response response = okHttpClient.newCall(request).execute()) {
+                if (response.isSuccessful()) {
+                    System.out.println("✅ 活動通知已寫入聊天室歷史: " + title);
+                    return true;
+                } else {
+                    System.err.println("❌ 寫入聊天室歷史失敗: " + response.body().string());
+                    return false;
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
 }
