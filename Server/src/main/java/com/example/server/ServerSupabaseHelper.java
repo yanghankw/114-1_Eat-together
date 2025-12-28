@@ -297,13 +297,17 @@ public class ServerSupabaseHelper {
         }
     }
 
+    // 修改：獲取好友列表 (現在會包含最後訊息了！)
     public static String getFriendList(String myId) {
         try {
             HttpClient client = HttpClient.newHttpClient();
 
-            // 直接查詢我們剛剛建好的 View，條件是 me = eq.我的ID
+            // ★ 修改點：改讀 view_my_private_chats_flat
+            // 條件：owner_id 等於 傳進來的 myId
+            String query = "owner_id=eq." + myId;
+
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(PROJECT_URL + "/rest/v1/friend_details?me=eq." + myId))
+                    .uri(URI.create(PROJECT_URL + "/rest/v1/view_my_private_chats_flat?" + query))
                     .header("apikey", API_KEY)
                     .header("Authorization", "Bearer " + API_KEY)
                     .GET()
@@ -312,7 +316,8 @@ public class ServerSupabaseHelper {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() == 200) {
-                // 去除換行符號
+                // 回傳的 JSON 長這樣:
+                // [{"owner_id":"...", "friend_id":"...", "friend_name":"...", "last_msg":"...", "last_time":"..."}, ...]
                 return response.body().replace("\n", "").replace("\r", "");
             }
         } catch (Exception e) {
@@ -509,18 +514,16 @@ public class ServerSupabaseHelper {
     }
 
     // ★ 新增：獲取某個 User 參加的所有群組
+    // 修改：獲取某個 User 參加的所有群組 (讀取 view_my_group_chats)
     public static String getUserGroups(String userId) {
         try {
             HttpClient client = HttpClient.newHttpClient();
 
-            // 語法解釋：
-            // 1. 找 group_members 表
-            // 2. 條件: user_id = userId
-            // 3. select: 抓出 group_id，順便把 groups 表的 name 也抓出來
-            String query = "user_id=eq." + userId + "&select=group_id,groups(name)";
+            // ★ 修改點：改讀 view_my_group_chats，條件是 member_id = userId
+            String query = "member_id=eq." + userId;
 
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(PROJECT_URL + "/rest/v1/group_members?" + query))
+                    .uri(URI.create(PROJECT_URL + "/rest/v1/view_my_group_chats?" + query))
                     .header("apikey", API_KEY)
                     .header("Authorization", "Bearer " + API_KEY)
                     .GET()
