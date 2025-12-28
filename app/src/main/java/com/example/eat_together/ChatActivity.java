@@ -11,6 +11,8 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -21,6 +23,13 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import androidx.constraintlayout.widget.ConstraintLayout; // 用於 rootLayout
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.request.target.CustomTarget;
+import com.bumptech.glide.request.transition.Transition; // 用於 onResourceReady
+import java.util.Random;
+import android.graphics.drawable.Drawable; // 用於 Drawable
 
 public class ChatActivity extends AppCompatActivity {
 
@@ -37,6 +46,8 @@ public class ChatActivity extends AppCompatActivity {
     private String targetName;  // 對方名稱 或 群組名稱
     private String chatType;    // "PRIVATE" 或 "GROUP"
 
+    private ConstraintLayout rootLayout;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -49,6 +60,17 @@ public class ChatActivity extends AppCompatActivity {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
             toolbar.setNavigationOnClickListener(v -> finish());
         }
+
+        // ★ 新增：綁定 rootLayout (這樣 fetchRandomImageApi 裡的 rootLayout 才有值)
+        rootLayout = findViewById(R.id.root_chat_layout);
+
+        // ★ 新增：綁定 Toolbar 上的 "+" 按鈕並設定點擊事件
+        Button btnChangeBg = findViewById(R.id.button2);
+        btnChangeBg.setOnClickListener(v -> {
+            // 當按鈕被按下時，執行換背景的方法
+            fetchRandomImageApi();
+            Toast.makeText(ChatActivity.this, "正在更換背景...", Toast.LENGTH_SHORT).show();
+        });
 
         // 2. 讀取 Intent 資料與使用者 ID
         Intent intent = getIntent();
@@ -357,4 +379,36 @@ public class ChatActivity extends AppCompatActivity {
                 .setNegativeButton("取消", null)
                 .show();
     }
+
+    // 呼叫 API 並更換背景的方法
+    // 呼叫 API 並更換背景的方法
+    private void fetchRandomImageApi() {
+        // 產生隨機亂數
+        int randomNum = new Random().nextInt(1000);
+
+        // Picsum API
+        String apiUrl = "https://picsum.photos/1080/1920?random=" + randomNum;
+
+        // 使用 Glide 連線 API 下載圖片
+        Glide.with(ChatActivity.this)
+                .load(apiUrl)
+                .into(new CustomTarget<Drawable>() {
+                    @Override
+                    // ★ 修正重點：這裡直接使用 Transition，不要用 androidx.constraintlayout... 那一長串
+                    public void onResourceReady(@NonNull Drawable resource, @Nullable Transition<? super Drawable> transition) {
+                        // 圖片下載成功，設定為背景
+                        if (rootLayout != null) {
+                            rootLayout.setBackground(resource);
+                        }
+                    }
+
+                    @Override
+                    public void onLoadCleared(@Nullable Drawable placeholder) {
+                        // 清除時的處理
+                    }
+                });
+    }
+
+
+
 }
