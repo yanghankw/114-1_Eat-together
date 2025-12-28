@@ -47,6 +47,8 @@ public class ChatActivity extends AppCompatActivity {
     private String chatType;    // "PRIVATE" 或 "GROUP"
 
     private ConstraintLayout rootLayout;
+    private static final String PREFS_NAME = "ChatSettings";
+    private static final String KEY_BG_URL = "saved_background_url";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,11 +68,21 @@ public class ChatActivity extends AppCompatActivity {
 
         // ★ 新增：綁定 Toolbar 上的 "+" 按鈕並設定點擊事件
         Button btnChangeBg = findViewById(R.id.button2);
+
         btnChangeBg.setOnClickListener(v -> {
             // 當按鈕被按下時，執行換背景的方法
             fetchRandomImageApi();
             Toast.makeText(ChatActivity.this, "正在更換背景...", Toast.LENGTH_SHORT).show();
         });
+
+        // ★★★ 新增這段：檢查是否有儲存的背景 ★★★
+        SharedPreferences settings = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        String savedUrl = settings.getString(KEY_BG_URL, null); // 嘗試取出網址
+
+        if (savedUrl != null) {
+            // 如果有存過，就直接載入這張舊圖
+            loadBackground(savedUrl);
+        }
 
         // 2. 讀取 Intent 資料與使用者 ID
         Intent intent = getIntent();
@@ -380,31 +392,39 @@ public class ChatActivity extends AppCompatActivity {
                 .show();
     }
 
-    // 呼叫 API 並更換背景的方法
-    // 呼叫 API 並更換背景的方法
+    // 這是原本的方法，修改成：產生網址 -> 儲存 -> 載入
     private void fetchRandomImageApi() {
-        // 產生隨機亂數
-        int randomNum = new Random().nextInt(1000);
+        // 1. 產生隨機亂數種子 (這裡示範用 Robohash 怪獸，你可以換回你喜歡的 API)
+        String randomSeed = "monster_" + new java.util.Random().nextInt(10000);
 
-        // Picsum API
-        String apiUrl = "https://picsum.photos/1080/1920?random=" + randomNum;
+        // 產生 API 網址
+        String newUrl = "https://picsum.photos/1080/1920?random=" + randomSeed + "?set=set2&bgset=bg1&size=1080x1920";
 
-        // 使用 Glide 連線 API 下載圖片
+        // 2. ★★★ 關鍵步驟：把這個網址存進手機裡 ★★★
+        SharedPreferences settings = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        settings.edit()
+                .putString(KEY_BG_URL, newUrl) // 放入網址
+                .apply(); // 儲存！
+
+        // 3. 呼叫載入圖片的方法
+        loadBackground(newUrl);
+    }
+
+    // ★ 新增這個方法：專門負責用 Glide 載入圖片
+// 這樣 onCreate 也可以共用這個方法
+    private void loadBackground(String url) {
         Glide.with(ChatActivity.this)
-                .load(apiUrl)
-                .into(new CustomTarget<Drawable>() {
+                .load(url)
+                .into(new com.bumptech.glide.request.target.CustomTarget<android.graphics.drawable.Drawable>() {
                     @Override
-                    // ★ 修正重點：這裡直接使用 Transition，不要用 androidx.constraintlayout... 那一長串
-                    public void onResourceReady(@NonNull Drawable resource, @Nullable Transition<? super Drawable> transition) {
-                        // 圖片下載成功，設定為背景
+                    public void onResourceReady(@androidx.annotation.NonNull android.graphics.drawable.Drawable resource, @androidx.annotation.Nullable com.bumptech.glide.request.transition.Transition<? super android.graphics.drawable.Drawable> transition) {
                         if (rootLayout != null) {
                             rootLayout.setBackground(resource);
                         }
                     }
 
                     @Override
-                    public void onLoadCleared(@Nullable Drawable placeholder) {
-                        // 清除時的處理
+                    public void onLoadCleared(@androidx.annotation.Nullable android.graphics.drawable.Drawable placeholder) {
                     }
                 });
     }
