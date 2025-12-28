@@ -1,24 +1,34 @@
 package com.example.eat_together;
 
 import android.util.Log;
-
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.Socket;
-
-import java.io.BufferedReader; // 記得 import
-import java.io.InputStreamReader; // 記得 import
 
 public class TcpClient {
     private static TcpClient instance;
     private Socket socket;
     private PrintWriter out;
-    private BufferedReader in; // ★ 新增這行
+    private BufferedReader in;
 
-    // ⚠️ 請確認這是您電腦的 IP (模擬器請用 10.0.2.2，實機請用 192.168.x.x)
-    private static final String SERVER_IP = "10.0.2.2";
+    // 監聽器介面
+    public interface OnMessageReceivedListener {
+        void onMessageReceived(String message);
+    }
+
+    private OnMessageReceivedListener listener;
+    private static final String SERVER_IP = "10.0.2.2"; // 模擬器用 IP
     private static final int SERVER_PORT = 12345;
+
+    private boolean isRunning = false;
+
+    // ★★★ 新增：同步控制變數 (用來解決讀取衝突) ★★★
+    private final Object lock = new Object(); // 鎖
+    private boolean isWaitingForReply = false; // 是否有人在等回應
+    private String replyMessage = null;       // 暫存回應的變數
 
     public static TcpClient getInstance() {
         if (instance == null) {
@@ -27,61 +37,107 @@ public class TcpClient {
         return instance;
     }
 
-    // ★ 修改 1: 將連線動作強制放到背景執行緒
+    public void setListener(OnMessageReceivedListener listener) {
+        this.listener = listener;
+    }
+
     public void connect() {
-        if (isConnected()) {
-            Log.d("TCP", "已經連線中，跳過連線動作");
-            return;
-        }
+        if (isConnected()) return;
 
         new Thread(() -> {
             try {
-                // ... 連線 socket ...
                 socket = new Socket(SERVER_IP, SERVER_PORT);
                 out = new PrintWriter(new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), "UTF-8")), true);
-                // ★ 新增這行：初始化輸入流，這樣才能聽到 Server 說話
-                in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                in = new BufferedReader(new InputStreamReader(socket.getInputStream(), "UTF-8"));
 
                 Log.d("TCP", "✅ 連線成功！");
-            } catch (Exception e) { /* ... */ }
+                startReadingLoop();
+
+            } catch (Exception e) {
+                Log.e("TCP", "連線失敗", e);
+            }
         }).start();
     }
 
-    // ★ 新增這個方法：發送訊息並「等待」對方回應 (同步方法)
-    public String sendRequest(String message) {
+    // ★★★ 核心修改：接收迴圈 (加入攔截邏輯) ★★★
+    private void startReadingLoop() {
+        isRunning = true;
         try {
-            if (out != null && in != null) {
-                out.println(message); // 發送
-                return in.readLine(); // 等待並讀取一行回應
+            String message;
+            while (isRunning && in != null && (message = in.readLine()) != null) {
+                Log.d("TCP", "收到訊息: " + message);
+
+                // 判斷是否有人在用 sendRequest 等這則訊息
+                synchronized (lock) {
+                    if (isWaitingForReply) {
+                        replyMessage = message;    // 把訊息存下來給 sendRequest
+                        isWaitingForReply = false; // 關閉等待旗標
+                        lock.notifyAll();          // 叫醒 sendRequest
+                        continue;                  // ★ 這則訊息被攔截了，不傳給 Listener
+                    }
+                }
+
+                // 如果沒人攔截，就正常傳給聊天室介面
+                if (listener != null) {
+                    listener.onMessageReceived(message);
+                }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.e("TCP", "讀取斷線", e);
+        } finally {
+            isRunning = false;
         }
-        return null; // 連線有問題
     }
 
-    // ★ 修改 2: 發送前檢查是否已連線
-    // 打開 TcpClient.java
     public void sendMessage(String message) {
-        if (out != null && !out.checkError()) {
-            out.println(message);
-            out.flush(); // 強制推出去
-        }
+        new Thread(() -> {
+            if (out != null && !out.checkError()) {
+                out.println(message);
+                out.flush();
+            }
+        }).start();
     }
 
     public boolean isConnected() {
-        // 檢查 socket 是否存在，且是否連線中
         return socket != null && socket.isConnected() && !socket.isClosed();
     }
 
-    public String readMessage() {
-        try {
-            if (in != null) {
-                return in.readLine(); // 會等待直到有新訊息
+    // ★★★ 重新實作：同步請求方法 (讓 ChatsFragment 呼叫) ★★★
+    // 這個方法會暫停目前的 Thread，直到收到回應
+    public String sendRequest(String command) {
+        synchronized (lock) {
+            try {
+                // 1. 設定旗標：告訴迴圈「我要攔截下一則訊息」
+                isWaitingForReply = true;
+                replyMessage = null;
+
+                // 2. 發送指令
+                if (out != null && !out.checkError()) {
+                    out.println(command);
+                    out.flush();
+                } else {
+                    isWaitingForReply = false;
+                    return null;
+                }
+
+                // 3. 等待回應 (最多等 5 秒，避免永久卡死)
+                lock.wait(5000);
+
+                // 4. 回傳攔截到的訊息
+                return replyMessage;
+
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+                isWaitingForReply = false;
+                return null;
             }
-        } catch (Exception e) {
-            e.printStackTrace();
         }
+    }
+
+    // ★★★ 補充：為了相容性，保留 readMessage 但回傳 null ★★★
+    // 因為現在讀取都由 startReadingLoop 統一管理，外部不應該直接呼叫這個了
+    public String readMessage() {
+        Log.w("TCP", "請勿直接呼叫 readMessage，請改用 Listener 或 sendRequest");
         return null;
     }
 }

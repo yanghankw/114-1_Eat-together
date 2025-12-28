@@ -1,42 +1,45 @@
 package com.example.eat_together;
 
 public class ChatMessage {
+    // 定義訊息類型常數
     public static final int TYPE_ME = 0;
     public static final int TYPE_OTHER = 1;
-    // ★ 新增：活動類型
-    public static final int TYPE_EVENT = 2;
+    public static final int TYPE_EVENT = 2; // ★ 新增：活動卡片類型
 
-    private String senderName; // ★ 新增：發送者名字
-    private String content;
-    // ★ 新增：活動相關欄位
-    private String eventId;
+    private String name;
+    private String content; // 如果是文字訊息，存內容；如果是活動，這欄位可以存 ID 或留空
+    private int type;
+    private String time;
+
+    // ★ 新增：活動專用欄位
     private String eventTitle;
     private String eventTime;
-    private int type;
+    private String eventId;
 
-    // ★ 修改建構子：多接收一個 senderName
-    public ChatMessage(String senderName, String content, int type) {
-        this.senderName = senderName;
+    // 一般文字訊息的建構子
+    public ChatMessage(String name, String content, int type) {
+        this.name = name;
         this.content = content;
         this.type = type;
     }
 
-    // ★ 新增：專門給活動用的建構子
+    // ★ 新增：活動訊息的建構子
     public ChatMessage(String eventId, String title, String time) {
         this.type = TYPE_EVENT;
         this.eventId = eventId;
         this.eventTitle = title;
         this.eventTime = time;
-        this.content = "[聚餐活動]"; // 預設內容，避免空指標
-        this.senderName = "系統通知";
+        this.name = "系統通知"; // 活動通常顯示為系統通知
     }
 
-    // ★ 新增：Getter 方法
-    public String getEventId() { return eventId; }
-    public String getEventTitle() { return eventTitle; }
-    public String getEventTime() { return eventTime; }
-
-    public String getSenderName() { return senderName; } // ★ 新增 Getter
+    // Getters and Setters
+    public String getName() { return name; }
     public String getContent() { return content; }
     public int getType() { return type; }
+    public void setSenderName(String name) { this.name = name; }
+    public void setTime(String time) { this.time = time; }
+
+    public String getEventTitle() { return eventTitle; }
+    public String getEventTime() { return eventTime; }
+    public String getEventId() { return eventId; }
 }

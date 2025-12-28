@@ -1,12 +1,17 @@
 package com.example.eat_together;
 
+import android.app.AlertDialog;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.EditText;
 import android.widget.SearchView;
 import android.widget.Toast;
 
@@ -19,266 +24,232 @@ import androidx.recyclerview.widget.RecyclerView;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 public class ChatsFragment extends Fragment {
 
     private RecyclerView recyclerView;
     private ChatsAdapter adapter;
     private List<ChatSession> chatList;
+    private String myId;
 
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_chats, container, false);
 
-        // --- UI 美化設定 (保留您原本的) ---
+        // 1. 讀取使用者 ID
+        SharedPreferences prefs = requireContext().getSharedPreferences("UserPrefs", Context.MODE_PRIVATE);
+        myId = prefs.getString("user_id", null);
+
+        // 2. 初始化 UI 元件
+        setupSearchView(view);
+        setupRecyclerView(view);
+        setupButtons(view);
+
+        return view;
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // 每次回到這個頁面時，重新整理列表 (確保最後訊息是最新的)
+        if (myId != null) {
+            loadAllChats();
+        } else {
+            Toast.makeText(getContext(), "請先登入", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    // --- UI 初始化區 ---
+
+    private void setupSearchView(View view) {
         SearchView searchView = view.findViewById(R.id.sv_location);
+        // 去除搜尋框底線背景 (您原本的美化設定)
         int plateId = searchView.getContext().getResources().getIdentifier("android:id/search_plate", null, null);
         View plateView = searchView.findViewById(plateId);
         if (plateView != null) {
             plateView.setBackgroundColor(Color.TRANSPARENT);
         }
+    }
 
+    private void setupRecyclerView(View view) {
         recyclerView = view.findViewById(R.id.recycler_view_chats);
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
-
-        // 1. 初始化空列表 (先不放假資料)
         chatList = new ArrayList<>();
         adapter = new ChatsAdapter(getContext(), chatList);
         recyclerView.setAdapter(adapter);
-
-        // 2. 讀取我的 User ID
-        SharedPreferences prefs = requireContext().getSharedPreferences("UserPrefs", Context.MODE_PRIVATE);
-        String myId = prefs.getString("user_id", null);
-
-        if (myId != null) {
-            // 3. 開始從 Server 抓好友
-            loadAllChats(myId);
-        } else {
-            Toast.makeText(getContext(), "請先登入", Toast.LENGTH_SHORT).show();
-        }
-
-        // ★★★ 新增：綁定按鈕並設定跳轉 ★★★
-        android.widget.Button btnCreateGroup = view.findViewById(R.id.btn_test_group); // XML 裡的 ID
-        btnCreateGroup.setOnClickListener(v -> {
-            showCreateGroupDialog();
-        });
-
-        return view;
     }
 
-    // ★ 新增：顯示建立群組的對話框
+    private void setupButtons(View view) {
+        Button btnCreateGroup = view.findViewById(R.id.btn_test_group);
+        btnCreateGroup.setOnClickListener(v -> showCreateGroupDialog());
+    }
+
+    // --- 核心功能：建立群組 ---
+
     private void showCreateGroupDialog() {
-        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(getContext());
-        builder.setTitle("建立新群組");
-
-        // 設定輸入框
-        final android.widget.EditText input = new android.widget.EditText(getContext());
+        final EditText input = new EditText(getContext());
         input.setHint("請輸入群組名稱");
-        builder.setView(input);
 
-        // 設定「建立」按鈕
-        builder.setPositiveButton("建立", (dialog, which) -> {
-            String groupName = input.getText().toString();
-            if (!groupName.isEmpty()) {
-                createGroupOnServer(groupName);
-            }
-        });
-
-        // 設定「取消」按鈕
-        builder.setNegativeButton("取消", (dialog, which) -> dialog.cancel());
-
-        builder.show();
+        new AlertDialog.Builder(getContext())
+                .setTitle("建立新群組")
+                .setView(input)
+                .setPositiveButton("建立", (dialog, which) -> {
+                    String groupName = input.getText().toString().trim();
+                    if (!groupName.isEmpty()) {
+                        createGroupOnServer(groupName);
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
     }
-
-    // ★ 新增：發送建立指令給 Server
-    // ChatsFragment.java
 
     private void createGroupOnServer(String groupName) {
-        // 讀取我的 ID
-        SharedPreferences prefs = requireContext().getSharedPreferences("UserPrefs", Context.MODE_PRIVATE);
-        String myId = prefs.getString("user_id", null);
-
-        if (myId == null) {
-            Toast.makeText(getContext(), "無法識別身分，請重新登入", Toast.LENGTH_SHORT).show();
-            return;
-        }
+        if (myId == null) return;
 
         new Thread(() -> {
             TcpClient client = TcpClient.getInstance();
             if (client.isConnected()) {
-                // ★ 修改 1: 指令加入 myId (格式: CREATE_GROUP:群組名:ID)
+                // 發送指令: CREATE_GROUP:群組名:創建者ID
                 String response = client.sendRequest("CREATE_GROUP:" + groupName + ":" + myId);
 
-                // ★ 修改 2: 增加安全檢查，防止切換頁面後崩潰
-                if (getActivity() == null) return;
-
-                if (response != null && response.startsWith("CREATE_GROUP_SUCCESS:")) {
+                // 切回主執行緒更新 UI
+                if (isAdded() && getActivity() != null) {
                     getActivity().runOnUiThread(() -> {
-                        Toast.makeText(getContext(), "群組建立成功！", Toast.LENGTH_SHORT).show();
-                        loadAllChats(myId);
+                        if (response != null && response.startsWith("CREATE_GROUP_SUCCESS:")) {
+                            Toast.makeText(getContext(), "群組建立成功！", Toast.LENGTH_SHORT).show();
+                            loadAllChats(); // 建立成功後，重新讀取列表
+                        } else {
+                            Toast.makeText(getContext(), "建立失敗，請稍後再試", Toast.LENGTH_SHORT).show();
+                        }
                     });
-                } else {
-                    getActivity().runOnUiThread(() ->
-                            Toast.makeText(getContext(), "建立失敗，請稍後再試", Toast.LENGTH_SHORT).show()
-                    );
                 }
             }
         }).start();
     }
 
-    private void loadAllChats(String myId) {
+    // --- 核心功能：載入列表 (整合好友與群組) ---
+
+    private void loadAllChats() {
         new Thread(() -> {
             TcpClient client = TcpClient.getInstance();
             if (!client.isConnected()) client.connect();
 
-            // 1. 先清空目前的列表 (避免重複)
-            getActivity().runOnUiThread(() -> {
-                chatList.clear();
-                adapter.notifyDataSetChanged();
-            });
+            // 建立一個暫存的 List，全部抓完再一次更新，避免畫面閃爍
+            List<ChatSession> tempAllChats = new ArrayList<>();
 
-            // ---------------------------------------------
-            // A. 抓好友 (PRIVATE)
-            // ---------------------------------------------
+            // 1. 抓取好友 (PRIVATE)
             String friendResponse = client.sendRequest("GET_FRIENDS:" + myId);
             if (friendResponse != null && friendResponse.startsWith("FRIENDS_JSON:")) {
                 String jsonStr = friendResponse.substring("FRIENDS_JSON:".length());
-                // 解析並加入列表 (type = "PRIVATE")
-                parseAndAddChats(jsonStr, "PRIVATE");
+                tempAllChats.addAll(parseChats(jsonStr, "PRIVATE"));
             }
 
-            // ---------------------------------------------
-            // B. 抓群組 (GROUP)
-            // ---------------------------------------------
-            String groupResponse = client.sendRequest("GET_MY_GROUPS:" + myId); // 記得 Server 要實作這個
+            // 2. 抓取群組 (GROUP)
+            String groupResponse = client.sendRequest("GET_MY_GROUPS:" + myId);
             if (groupResponse != null && groupResponse.startsWith("GROUPS_JSON:")) {
                 String jsonStr = groupResponse.substring("GROUPS_JSON:".length());
-                // 解析並加入列表 (type = "GROUP")
-                parseAndAddChats(jsonStr, "GROUP");
+                tempAllChats.addAll(parseChats(jsonStr, "GROUP"));
+            }
+
+            // 3. 統一更新 UI
+            if (isAdded() && getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    chatList.clear();
+                    chatList.addAll(tempAllChats);
+                    adapter.notifyDataSetChanged();
+                });
             }
 
         }).start();
     }
 
     // 通用的解析方法
-    private void parseAndAddChats(String jsonString, String type) {
+    private List<ChatSession> parseChats(String jsonString, String type) {
+        List<ChatSession> resultList = new ArrayList<>();
         try {
             JSONArray jsonArray = new JSONArray(jsonString);
-            List<ChatSession> tempAddList = new ArrayList<>();
 
             for (int i = 0; i < jsonArray.length(); i++) {
                 JSONObject obj = jsonArray.getJSONObject(i);
-                String id = "";
-                String name = "";
+                String id;
+                String name;
                 String lastMsg = "點擊開始聊天"; // 預設值
                 String time = "";
+                int iconRes;
 
-                // 修改私聊 (PRIVATE) 的解析邏輯
                 if ("PRIVATE".equals(type)) {
-                    // 讀取新的欄位 (對應 SQL View)
+                    // --- 私聊解析 ---
                     name = obj.optString("friend_name", "未知好友");
                     id = obj.optString("friend_id");
-
-                    // 讀取最後訊息
-                    if (!obj.isNull("last_msg")) {
-                        lastMsg = obj.getString("last_msg");
-                    }
-
-                    // 讀取時間
-                    if (!obj.isNull("last_time")) {
-                        String rawTime = obj.getString("last_time");
-                        time = formatDisplayTime(rawTime); // 直接轉換成「今天」、「昨天」或「日期」
-                    }
-
-                } else { // GROUP
-                    // ★★★ 群組邏輯修改 ★★★
-                    // 因為我們改了 View，現在 JSON 結構變扁平了，直接在 obj 這一層
+                    iconRes = R.drawable.ic_person; // 需確保此圖示存在
+                } else {
+                    // --- 群組解析 ---
                     id = String.valueOf(obj.optInt("group_id"));
                     name = obj.optString("group_name", "群組 " + id);
-
-                    // ★ 讀取最後訊息 (如果沒有就顯示預設)
-                    if (!obj.isNull("last_msg")) {
-                        lastMsg = obj.getString("last_msg");
-                    }
-
-                    // ★ 讀取時間
-                    if (!obj.isNull("last_time")) {
-                        String rawTime = obj.getString("last_time");
-                        time = formatDisplayTime(rawTime); // 直接轉換成「今天」、「昨天」或「日期」
-                    }
+                    iconRes = R.drawable.ic_launcher_foreground; // 群組圖示
                 }
 
-                // 加入列表
-                int iconRes = "GROUP".equals(type) ? R.drawable.ic_launcher_foreground : R.drawable.ic_person;
+                // --- 共同欄位 (最後訊息與時間) ---
+                if (!obj.isNull("last_msg")) {
+                    lastMsg = obj.getString("last_msg");
+                }
 
-                // ★ 將 lastMsg 和 time 傳入
-                tempAddList.add(new ChatSession(id, name, lastMsg, time, iconRes, type));
+                if (!obj.isNull("last_time")) {
+                    String rawTime = obj.getString("last_time");
+                    time = formatDisplayTime(rawTime);
+                }
+
+                resultList.add(new ChatSession(id, name, lastMsg, time, iconRes, type));
             }
-
-            getActivity().runOnUiThread(() -> {
-                chatList.addAll(tempAddList);
-                adapter.notifyDataSetChanged();
-            });
-
         } catch (Exception e) {
             e.printStackTrace();
         }
+        return resultList;
     }
 
-    // ★★★ 新增：智慧時間格式化工具 ★★★
+    // --- 工具：時間格式化 ---
+
     private String formatDisplayTime(String rawTime) {
         if (rawTime == null || rawTime.isEmpty()) return "";
-
         try {
-            // 1. 預處理字串：把 "T" 換成空白，並去除毫秒 (如果有小數點)
-            // 輸入可能像: "2025-12-28T16:20:30.123" 或 "2025-12-28 16:20:30"
+            // 處理時間字串 (移除 T 和 毫秒)
             String cleanTime = rawTime.replace("T", " ");
             if (cleanTime.contains(".")) {
                 cleanTime = cleanTime.substring(0, cleanTime.indexOf("."));
             }
 
-            // 2. 解析時間
-            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault());
-            java.util.Date msgDate = sdf.parse(cleanTime);
-            java.util.Date now = new java.util.Date();
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+            Date msgDate = sdf.parse(cleanTime);
+            Date now = new Date();
 
-            // 3. 使用 Calendar 比較日期
-            java.util.Calendar calMsg = java.util.Calendar.getInstance();
+            Calendar calMsg = Calendar.getInstance();
             calMsg.setTime(msgDate);
-
-            java.util.Calendar calNow = java.util.Calendar.getInstance();
+            Calendar calNow = Calendar.getInstance();
             calNow.setTime(now);
 
-            boolean isSameYear = calMsg.get(java.util.Calendar.YEAR) == calNow.get(java.util.Calendar.YEAR);
-            boolean isSameDay = isSameYear && (calMsg.get(java.util.Calendar.DAY_OF_YEAR) == calNow.get(java.util.Calendar.DAY_OF_YEAR));
-            boolean isYesterday = isSameYear && (calMsg.get(java.util.Calendar.DAY_OF_YEAR) == calNow.get(java.util.Calendar.DAY_OF_YEAR) - 1);
+            boolean isSameYear = calMsg.get(Calendar.YEAR) == calNow.get(Calendar.YEAR);
+            boolean isSameDay = isSameYear && (calMsg.get(Calendar.DAY_OF_YEAR) == calNow.get(Calendar.DAY_OF_YEAR));
+            boolean isYesterday = isSameYear && (calMsg.get(Calendar.DAY_OF_YEAR) == calNow.get(Calendar.DAY_OF_YEAR) - 1);
 
-            // 4. 決定顯示格式
             if (isSameDay) {
-                // 如果是今天 -> 顯示 "16:20"
-                java.text.SimpleDateFormat timeFormat = new java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault());
-                return timeFormat.format(msgDate);
+                return new SimpleDateFormat("HH:mm", Locale.getDefault()).format(msgDate);
             } else if (isYesterday) {
-                // 如果是昨天 -> 顯示 "昨天" (或是 "昨天 16:20" 看你喜好)
                 return "昨天";
             } else if (isSameYear) {
-                // 如果是今年 -> 顯示 "12/28"
-                java.text.SimpleDateFormat monthDayFormat = new java.text.SimpleDateFormat("MM/dd", java.util.Locale.getDefault());
-                return monthDayFormat.format(msgDate);
+                return new SimpleDateFormat("MM/dd", Locale.getDefault()).format(msgDate);
             } else {
-                // 如果是跨年了 -> 顯示 "2024/12/31"
-                java.text.SimpleDateFormat yearFormat = new java.text.SimpleDateFormat("yyyy/MM/dd", java.util.Locale.getDefault());
-                return yearFormat.format(msgDate);
+                return new SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(msgDate);
             }
-
         } catch (Exception e) {
-            e.printStackTrace();
-            // 如果解析失敗，回傳原本的簡單切割 (當作備案)
-            if (rawTime.length() > 16) return rawTime.substring(11, 16);
-            return rawTime;
+            // 解析失敗時，回傳簡單擷取的字串作為備案
+            return rawTime.length() > 16 ? rawTime.substring(0, 10) : rawTime;
         }
     }
 }
