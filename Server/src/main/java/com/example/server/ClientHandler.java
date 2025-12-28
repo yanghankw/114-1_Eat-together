@@ -173,16 +173,35 @@ public class ClientHandler implements Runnable {
                 }
                 // ★ 新增：建立群組指令
                 else if (message.startsWith("CREATE_GROUP:")) {
-                    // 格式: CREATE_GROUP:群組名
-                    String[] parts = message.split(":", 2);
-                    if (parts.length == 2 && myUserId != null) {
-                        String groupName = parts[1];
-                        String groupId = ServerSupabaseHelper.createGroup(groupName, myUserId);
+                    // 新格式: CREATE_GROUP:群組名:建立者ID
+                    String[] parts = message.split(":");
+
+                    String groupName = "";
+                    String creatorId = null;
+
+                    if (parts.length == 3) {
+                        // 情況 A: App 有傳 ID 過來 (推薦)
+                        groupName = parts[1];
+                        creatorId = parts[2];
+                    } else if (parts.length == 2 && myUserId != null) {
+                        // 情況 B: App 沒傳 ID，但之前有登入過 (Fallback)
+                        groupName = parts[1];
+                        creatorId = myUserId;
+                    }
+
+                    if (creatorId != null) {
+                        System.out.println("建立群組: " + groupName + ", 建立者: " + creatorId);
+                        String groupId = ServerSupabaseHelper.createGroup(groupName, creatorId);
+
                         if (groupId != null) {
                             out.println("CREATE_GROUP_SUCCESS:" + groupId + ":" + groupName);
                         } else {
                             out.println("CREATE_GROUP_FAIL");
                         }
+                    } else {
+                        // ★ 關鍵：如果是 null，一定要回傳錯誤，不然 App 會卡死！
+                        System.out.println("建立失敗：無使用者 ID");
+                        out.println("CREATE_GROUP_FAIL:無使用者ID");
                     }
                 }
                 // ★ 新增：獲取我的群組列表
@@ -219,10 +238,13 @@ public class ClientHandler implements Runnable {
                     out.println("UNKNOWN_COMMAND");
                 }
             }
-        } catch (IOException e) {
-            System.out.println("Client disconnected: " + socket.getInetAddress());
+        } catch (Exception e) {
+            // ★★★ 修改重點：改成 Exception (抓所有錯誤) ★★★
+            // 這樣就算程式寫錯，Server 也不會當機，還會印出是哪裡錯了
+            System.err.println("⚠️ 發生錯誤，連線中斷: " + e.getMessage());
+            e.printStackTrace();
         } finally {
-            // ★★★ 斷線處理：把自己從白板上擦掉 ★★★
+            // ... (原本的斷線處理) ...
             if (myUserId != null) {
                 ServerMain.onlineUsers.remove(myUserId);
                 System.out.println("使用者下線: " + myUserId);

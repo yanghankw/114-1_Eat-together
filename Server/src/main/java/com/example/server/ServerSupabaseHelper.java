@@ -6,6 +6,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.List;
+import okhttp3.*;
 
 public class ServerSupabaseHelper {
 
@@ -21,6 +22,9 @@ public class ServerSupabaseHelper {
 //    private static final String PROJECT_URL = "https://rhvbyvpmnjhnxqbrewoj.supabase.co";
 //    private static final String API_KEY = "sb_publishable_GujBS-Yim9FIh5LPwC0WQg_Xbr7diu-";
     private static final HttpClient client = HttpClient.newHttpClient();
+
+    private static final okhttp3.OkHttpClient okHttpClient = new okhttp3.OkHttpClient();
+    private static final okhttp3.MediaType JSON = okhttp3.MediaType.get("application/json; charset=utf-8");
 
     // 1. 註冊流程 (主入口)
     public static boolean registerUser(String email, String password) {
@@ -440,54 +444,6 @@ public class ServerSupabaseHelper {
         return memberIds;
     }
 
-    // ★ 新增：建立群組 (簡單版，只回傳是否成功)
-    // 參數: groupName, creatorId (建立者也會自動加入成員)
-    public static String createGroup(String groupName, String creatorId) {
-        try {
-            HttpClient client = HttpClient.newHttpClient();
-
-            // 1. 先建立 Group，並要求回傳 ID
-            String jsonBody = String.format("{\"name\": \"%s\"}", groupName);
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(PROJECT_URL + "/rest/v1/groups"))
-                    .header("Content-Type", "application/json")
-                    .header("apikey", API_KEY)
-                    .header("Authorization", "Bearer " + API_KEY)
-                    .header("Prefer", "return=representation") // 要求回傳剛建立的資料
-                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
-                    .build();
-
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-            if (response.statusCode() == 201) {
-                // 解析出 group_id
-                String groupId = extractValueFromJson(response.body(), "id"); // 假設 id 是數字
-                // 如果 extractValueFromJson 只抓字串，可能要修一下，或是直接用 replace 處理數字
-                // 這裡假設您的 extractValueFromJson 可以處理
-
-                // 2. 把建立者加入 group_members
-                joinGroup(groupId, creatorId);
-                return groupId;
-            }
-        } catch (Exception e) { e.printStackTrace(); }
-        return null;
-    }
-
-    public static void joinGroup(String groupId, String userId) {
-        try {
-            HttpClient client = HttpClient.newHttpClient();
-            String jsonBody = String.format("{\"group_id\": %s, \"user_id\": \"%s\"}", groupId, userId);
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(PROJECT_URL + "/rest/v1/group_members"))
-                    .header("Content-Type", "application/json")
-                    .header("apikey", API_KEY)
-                    .header("Authorization", "Bearer " + API_KEY)
-                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
-                    .build();
-            client.send(request, HttpResponse.BodyHandlers.ofString());
-        } catch (Exception e) {}
-    }
-
     // ★ 新增：根據 UUID 獲取使用者名稱
     public static String getUserName(String uuid) {
         try {
@@ -579,5 +535,93 @@ public class ServerSupabaseHelper {
             e.printStackTrace();
         }
         return "[]";
+    }
+
+    // ★ 新增：建立群組並回傳 Group ID
+    // ★ 修正版：使用 Regex 強力解析 ID，防止 Server 崩潰
+    public static String createGroup(String groupName, String creatorId) {
+        try {
+            // 1. 準備 JSON
+            String jsonBody = String.format("{\"name\": \"%s\"}", groupName);
+
+            okhttp3.RequestBody body = okhttp3.RequestBody.create(jsonBody, JSON);
+            okhttp3.Request request = new okhttp3.Request.Builder()
+                    .url(PROJECT_URL + "/rest/v1/groups")
+                    .header("apikey", API_KEY)
+                    .header("Authorization", "Bearer " + API_KEY)
+                    .header("Prefer", "return=representation") // 要求回傳剛建立的資料
+                    .post(body)
+                    .build();
+
+            // 2. 發送請求
+            try (okhttp3.Response response = okHttpClient.newCall(request).execute()) {
+                String responseBody = response.body() != null ? response.body().string() : "";
+
+                if (response.isSuccessful()) {
+                    // 使用 Regex 抓取 ID (跟你原本的邏輯一樣，但適配 OkHttp)
+                    java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\"id\":\\s*(\\d+)");
+                    java.util.regex.Matcher matcher = pattern.matcher(responseBody);
+
+                    if (matcher.find()) {
+                        String groupId = matcher.group(1);
+                        System.out.println("群組建立成功，ID: " + groupId);
+
+                        // ★ 關鍵步驟：立刻把自己加入群組
+                        boolean joinSuccess = joinGroup(groupId, creatorId);
+
+                        if (joinSuccess) {
+                            return groupId; // 一切順利
+                        } else {
+                            System.err.println("警告：群組建立成功，但自動加入成員失敗！請檢查 group_members 表格權限或欄位");
+                            // 雖然加入失敗，但群組已建立，還是回傳 ID，或視需求回傳 null
+                            return groupId;
+                        }
+                    }
+                } else {
+                    System.err.println("建立群組失敗 Code: " + response.code() + ", Body: " + responseBody);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    // 輔助：加入群組
+    // 輔助：加入群組 (改為回傳 boolean 以便除錯)
+    public static boolean joinGroup(String groupId, String userId) {
+        try {
+            // ★ 注意：請確認你的資料表 group_members 是否真的有 "status" 這個欄位？
+            // 只傳送群組ID和使用者ID
+            String jsonString = String.format("{\"group_id\": %s, \"user_id\": \"%s\"}", groupId, userId);
+
+            okhttp3.RequestBody body = okhttp3.RequestBody.create(jsonString, JSON);
+            okhttp3.Request request = new okhttp3.Request.Builder()
+                    .url(PROJECT_URL + "/rest/v1/group_members")
+                    .header("apikey", API_KEY)
+                    .header("Authorization", "Bearer " + API_KEY)
+                    .post(body)
+                    .build();
+
+            try (okhttp3.Response response = okHttpClient.newCall(request).execute()) {
+
+                // ★★★ 修改這裡 ★★★
+                // 如果成功 (2xx) 或者 衝突 (409 代表已經是成員)，都算成功
+                if (response.isSuccessful() || response.code() == 409) {
+                    if (response.code() == 409) {
+                        System.out.println("提示：使用者已經是群組成員了 (409 Duplicate)");
+                    } else {
+                        System.out.println("成功加入群組: Group " + groupId + " -> User " + userId);
+                    }
+                    return true;
+                } else {
+                    System.err.println("加入群組失敗！Code: " + response.code() + ", Msg: " + response.body().string());
+                    return false;
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 }

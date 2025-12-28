@@ -61,20 +61,72 @@ public class ChatsFragment extends Fragment {
         }
 
         // ★★★ 新增：綁定按鈕並設定跳轉 ★★★
-        android.widget.Button btnTest = view.findViewById(R.id.btn_test_group);
-        btnTest.setOnClickListener(v -> {
-            // 準備跳轉到 ChatActivity
-            android.content.Intent intent = new android.content.Intent(getContext(), ChatActivity.class);
-
-            // 設定參數告訴 ChatActivity 這是「群組聊天」
-            intent.putExtra("CHAT_TYPE", "GROUP");   // 告訴它是群組
-            intent.putExtra("FRIEND_ID", "1");       // ★ 群組 ID (請確認資料庫 groups 表有 id=1 的資料)
-            intent.putExtra("FRIEND_NAME", "美食團"); // 群組名稱 (顯示在標題)
-
-            startActivity(intent);
+        android.widget.Button btnCreateGroup = view.findViewById(R.id.btn_test_group); // XML 裡的 ID
+        btnCreateGroup.setOnClickListener(v -> {
+            showCreateGroupDialog();
         });
 
         return view;
+    }
+
+    // ★ 新增：顯示建立群組的對話框
+    private void showCreateGroupDialog() {
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(getContext());
+        builder.setTitle("建立新群組");
+
+        // 設定輸入框
+        final android.widget.EditText input = new android.widget.EditText(getContext());
+        input.setHint("請輸入群組名稱");
+        builder.setView(input);
+
+        // 設定「建立」按鈕
+        builder.setPositiveButton("建立", (dialog, which) -> {
+            String groupName = input.getText().toString();
+            if (!groupName.isEmpty()) {
+                createGroupOnServer(groupName);
+            }
+        });
+
+        // 設定「取消」按鈕
+        builder.setNegativeButton("取消", (dialog, which) -> dialog.cancel());
+
+        builder.show();
+    }
+
+    // ★ 新增：發送建立指令給 Server
+    // ChatsFragment.java
+
+    private void createGroupOnServer(String groupName) {
+        // 讀取我的 ID
+        SharedPreferences prefs = requireContext().getSharedPreferences("UserPrefs", Context.MODE_PRIVATE);
+        String myId = prefs.getString("user_id", null);
+
+        if (myId == null) {
+            Toast.makeText(getContext(), "無法識別身分，請重新登入", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        new Thread(() -> {
+            TcpClient client = TcpClient.getInstance();
+            if (client.isConnected()) {
+                // ★ 修改 1: 指令加入 myId (格式: CREATE_GROUP:群組名:ID)
+                String response = client.sendRequest("CREATE_GROUP:" + groupName + ":" + myId);
+
+                // ★ 修改 2: 增加安全檢查，防止切換頁面後崩潰
+                if (getActivity() == null) return;
+
+                if (response != null && response.startsWith("CREATE_GROUP_SUCCESS:")) {
+                    getActivity().runOnUiThread(() -> {
+                        Toast.makeText(getContext(), "群組建立成功！", Toast.LENGTH_SHORT).show();
+                        loadAllChats(myId);
+                    });
+                } else {
+                    getActivity().runOnUiThread(() ->
+                            Toast.makeText(getContext(), "建立失敗，請稍後再試", Toast.LENGTH_SHORT).show()
+                    );
+                }
+            }
+        }).start();
     }
 
     private void loadAllChats(String myId) {
