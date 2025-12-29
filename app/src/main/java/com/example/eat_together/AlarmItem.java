@@ -5,10 +5,10 @@ public class AlarmItem {
     public String time;
     public String date;
     public boolean isOn;
-    // 🔥 新增原始數值欄位，用來重新啟動鬧鐘
     public int year, month, day, hour, minute;
+    public String description; // 🔥 新增描述欄位
 
-    public AlarmItem(int id, String time, String date, boolean isOn, int year, int month, int day, int hour, int minute) {
+    public AlarmItem(int id, String time, String date, boolean isOn, int year, int month, int day, int hour, int minute, String description) {
         this.id = id;
         this.time = time;
         this.date = date;
@@ -18,5 +18,6 @@ public class AlarmItem {
         this.day = day;
         this.hour = hour;
         this.minute = minute;
+        this.description = description;
     }
 }

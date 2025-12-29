@@ -14,18 +14,16 @@ public class AlarmAdapter extends RecyclerView.Adapter<AlarmAdapter.ViewHolder> 
 
     private List<AlarmItem> alarmList;
     private OnAlarmLongClickListener longClickListener;
-    private OnAlarmStatusChangeListener statusChangeListener; // 🔥 新增監聽器
+    private OnAlarmStatusChangeListener statusChangeListener;
 
     public interface OnAlarmLongClickListener {
         void onAlarmLongClick(int position);
     }
 
-    // 🔥 定義狀態改變介面
     public interface OnAlarmStatusChangeListener {
         void onStatusChange(int position, boolean isChecked);
     }
 
-    // 🔥 修改建構子
     public AlarmAdapter(List<AlarmItem> alarmList, OnAlarmLongClickListener longListener, OnAlarmStatusChangeListener statusListener) {
         this.alarmList = alarmList;
         this.longClickListener = longListener;
@@ -45,12 +43,20 @@ public class AlarmAdapter extends RecyclerView.Adapter<AlarmAdapter.ViewHolder> 
 
         holder.tvTime.setText(item.time);
         holder.tvDate.setText(item.date);
+        
+        // ★ 顯示描述 (如果有)
+        if (item.description != null && !item.description.isEmpty()) {
+            holder.tvDescription.setText(item.description);
+            holder.tvDescription.setVisibility(View.VISIBLE);
+        } else {
+            holder.tvDescription.setVisibility(View.GONE);
+        }
 
-        // 🔥 先移除監聽器再設定狀態，避免 RecyclerView 回收機制觸發錯誤邏輯
+        // 先移除監聽器再設定狀態
         holder.switchAlarm.setOnCheckedChangeListener(null);
         holder.switchAlarm.setChecked(item.isOn);
 
-        // 🔥 設定開關監聽
+        // 設定開關監聽
         holder.switchAlarm.setOnCheckedChangeListener((buttonView, isChecked) -> {
             item.isOn = isChecked;
             if (statusChangeListener != null) {
@@ -70,7 +76,7 @@ public class AlarmAdapter extends RecyclerView.Adapter<AlarmAdapter.ViewHolder> 
     public int getItemCount() { return alarmList.size(); }
 
     public static class ViewHolder extends RecyclerView.ViewHolder {
-        TextView tvTime, tvDate;
+        TextView tvTime, tvDate, tvDescription; // ★ 新增 tvDescription
         @SuppressLint("UseSwitchCompatOrMaterialCode")
         Switch switchAlarm;
 
@@ -78,6 +84,7 @@ public class AlarmAdapter extends RecyclerView.Adapter<AlarmAdapter.ViewHolder> 
             super(itemView);
             tvTime = itemView.findViewById(R.id.tvTime);
             tvDate = itemView.findViewById(R.id.tvDate);
+            tvDescription = itemView.findViewById(R.id.tvDescription); // ★ 綁定元件
             switchAlarm = itemView.findViewById(R.id.switchAlarm);
         }
     }
