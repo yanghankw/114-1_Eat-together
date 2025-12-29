@@ -4,13 +4,15 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
-
 import java.util.List;
+
+import com.bumptech.glide.Glide;
 
 public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
@@ -20,114 +22,142 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         this.messageList = messageList;
     }
 
-    // 1. 決定這條訊息是「我」、「對方」還是「活動」
+    // ★★★ 關鍵 1：告訴 RecyclerView 有哪幾種 layout ★★★
     @Override
     public int getItemViewType(int position) {
+        // 這裡會回傳 0 (自己), 1 (對方), 或 2 (活動卡片)
         return messageList.get(position).getType();
     }
 
-    // 2. 根據類型載入對應的 XML Layout
+    // ★★★ 關鍵 2：根據類型載入對應的 XML 檔案 ★★★
     @NonNull
     @Override
     public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        LayoutInflater inflater = LayoutInflater.from(parent.getContext());
+
         if (viewType == ChatMessage.TYPE_ME) {
-            // 載入 item_msg_me.xml
-            View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_msg_me, parent, false);
+            // 載入自己的綠色泡泡
+            View view = inflater.inflate(R.layout.item_msg_me, parent, false);
             return new MeViewHolder(view);
         } else if (viewType == ChatMessage.TYPE_OTHER) {
-            // 載入 item_msg_other.xml
-            View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_msg_other, parent, false);
+            // 載入對方的白色泡泡
+            View view = inflater.inflate(R.layout.item_msg_other, parent, false);
             return new OtherViewHolder(view);
         } else {
-            // 載入 item_msg_event.xml (活動卡片)
-            View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_msg_event, parent, false);
+            // ★★★ 如果是 TYPE_EVENT，就載入你做的黃色卡片 XML ★★★
+            View view = inflater.inflate(R.layout.item_msg_event, parent, false);
             return new EventViewHolder(view);
         }
     }
 
-    // 3. 綁定資料 (將文字填入 View)
+    // ★★★ 關鍵 3：把資料填進去 ★★★
     @Override
     public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
         ChatMessage msg = messageList.get(position);
 
+        // === 情況 A: 處理自己的訊息 (維持原樣) ===
         if (holder instanceof MeViewHolder) {
-            // --- 處理「我」的訊息 ---
             MeViewHolder meHolder = (MeViewHolder) holder;
             meHolder.tvContent.setText(msg.getContent());
-            // 如果您的 Layout 有顯示名字的需求，可以打開下面這行：
-            // meHolder.tvSenderName.setText(msg.getName());
 
-        } else if (holder instanceof OtherViewHolder) {
-            // --- 處理「對方」的訊息 ---
+            String myName = (msg.getSenderName() != null) ? msg.getSenderName() : "我";
+            meHolder.tvSenderName.setText(myName);
+
+            String url = "https://robohash.org/" + myName + ".png?set=set1";
+            Glide.with(meHolder.itemView.getContext()).load(url).circleCrop().placeholder(R.drawable.ic_launcher_background).into(meHolder.ivAvatar);
+        }
+
+        // === 情況 B: 處理對方的訊息 (維持原樣) ===
+        else if (holder instanceof OtherViewHolder) {
             OtherViewHolder otherHolder = (OtherViewHolder) holder;
             otherHolder.tvContent.setText(msg.getContent());
-            otherHolder.tvSenderName.setText(msg.getName());
 
-        } else if (holder instanceof EventViewHolder) {
-            // --- 處理「活動卡片」 ---
+            String name = (msg.getSenderName() != null) ? msg.getSenderName() : "對方";
+            otherHolder.tvSenderName.setText(name);
+
+            String url = "https://robohash.org/" + name + ".png?set=set1";
+            Glide.with(otherHolder.itemView.getContext()).load(url).circleCrop().placeholder(R.drawable.ic_launcher_background).into(otherHolder.ivAvatar);
+        }
+
+        // === 情況 C: ★★★ 處理活動卡片 (這裡就是魔法發生的地方) ★★★ ===
+        else if (holder instanceof EventViewHolder) {
             EventViewHolder eventHolder = (EventViewHolder) holder;
-            eventHolder.tvTitle.setText(msg.getEventTitle());
 
-            // 時間格式處理：防呆機制，避免字串太短導致當機
-            String rawTime = msg.getEventTime();
-            if (rawTime != null && rawTime.length() > 16) {
-                eventHolder.tvTime.setText("時間：" + rawTime.replace("T", " ").substring(0, 16));
-            } else {
-                eventHolder.tvTime.setText("時間：" + rawTime);
+            // 取得那一長串原始資料，例如："10,McDonald's,2025-12-28T16:39:00+08:00"
+            String rawContent = msg.getContent();
+
+            try {
+                // 1. 用逗號 "," 把字串切開
+                String[] parts = rawContent.split(",");
+
+                // 確保切出來至少有 3 個部分 (ID, 地點, 時間)
+                if (parts.length >= 3) {
+                    String location = parts[1]; // 第 2 部分是地點 (McDonald's)
+                    String timeRaw = parts[2];  // 第 3 部分是時間 (2025-12-28T...)
+
+                    // 2. 美化時間顯示 (把中間的 'T' 換成空白，並只取前 16 個字)
+                    String displayTime = timeRaw.replace("T", " ");
+                    if(displayTime.length() > 16) displayTime = displayTime.substring(0, 16);
+
+                    // 3. 把整理好的資料填入卡片的格子裡
+                    eventHolder.tvTitle.setText(location);
+                    eventHolder.tvTime.setText("時間：" + displayTime);
+                } else {
+                    // 如果資料格式不對，就直接顯示原始資料當作備案
+                    eventHolder.tvTitle.setText(rawContent);
+                    eventHolder.tvTime.setText("時間格式錯誤");
+                }
+            } catch (Exception e) {
+                // 發生任何錯誤時的備案
+                eventHolder.tvTitle.setText("無法讀取活動資料");
+                eventHolder.tvTime.setText("");
             }
 
-            // 按鈕點擊事件：發送加入指令
+            // 4. 設定按鈕的點擊事件
             eventHolder.btnJoin.setOnClickListener(v -> {
-                Toast.makeText(v.getContext(), "正在加入活動...", Toast.LENGTH_SHORT).show();
-                new Thread(() -> {
-                    // 發送 JOIN_EVENT 指令給 Server (格式依您後端需求)
-                    TcpClient.getInstance().sendMessage("JOIN_EVENT:" + msg.getEventId());
-                }).start();
+                // 這裡之後可以寫跳轉到活動詳情頁面的程式碼
+                Toast.makeText(v.getContext(), "正在加入： " + eventHolder.tvTitle.getText(), Toast.LENGTH_SHORT).show();
             });
         }
     }
 
     @Override
-    public int getItemCount() {
-        return messageList.size();
-    }
+    public int getItemCount() { return messageList.size(); }
 
-    // ================== ViewHolder 定義區 ==================
+    // --- ViewHolder 定義區 (對照 XML 裡的 ID) ---
 
-    // 1. 我的訊息 (對應 item_msg_me.xml)
     static class MeViewHolder extends RecyclerView.ViewHolder {
-        TextView tvContent;
-        TextView tvSenderName;
-
+        TextView tvContent, tvSenderName;
+        ImageView ivAvatar;
         MeViewHolder(View view) {
             super(view);
-            // 根據您的 XML ID 設定
             tvContent = view.findViewById(R.id.tv_msg_content);
             tvSenderName = view.findViewById(R.id.tv_sender_name);
+            ivAvatar = view.findViewById(R.id.iv_avatar);
         }
     }
 
-    // 2. 對方的訊息 (對應 item_msg_other.xml)
     static class OtherViewHolder extends RecyclerView.ViewHolder {
-        TextView tvContent;
-        TextView tvSenderName;
-
+        TextView tvContent, tvSenderName;
+        ImageView ivAvatar;
         OtherViewHolder(View view) {
             super(view);
-            // 根據您的 XML ID 設定
             tvContent = view.findViewById(R.id.tv_msg_content);
             tvSenderName = view.findViewById(R.id.tv_sender_name);
+            ivAvatar = view.findViewById(R.id.iv_avatar);
         }
     }
 
-    // 3. 活動卡片 (對應 item_msg_event.xml)
+    // ★★★ 定義活動卡片的 ViewHolder ★★★
     static class EventViewHolder extends RecyclerView.ViewHolder {
-        TextView tvTitle, tvTime;
-        Button btnJoin;
+        // 這些變數名稱要對應你的 item_msg_event.xml 裡的 ID
+        TextView tvTitle; // 對應 android:id="@+id/tv_event_title"
+        TextView tvTime;  // 對應 android:id="@+id/tv_event_time"
+        Button btnJoin;   // 對應 android:id="@+id/btn_join_event"
 
         EventViewHolder(View view) {
             super(view);
-            // 根據活動卡片 Layout 的 ID 設定
+            // 綁定 XML 裡的元件
             tvTitle = view.findViewById(R.id.tv_event_title);
             tvTime = view.findViewById(R.id.tv_event_time);
             btnJoin = view.findViewById(R.id.btn_join_event);

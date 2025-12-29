@@ -1,7 +1,6 @@
 package com.example.eat_together;
 
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -21,7 +20,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
-// ★ 新增：Glide 的引用
+// ★ 1. 補回 Glide 的引用
 import com.bumptech.glide.Glide;
 
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
@@ -57,9 +56,10 @@ public class ProfileFragment extends Fragment {
     private ImageView ivProfile;
     private TextView tvName, tvEmail, tvBio;
 
-    // 容器變數
+
+    // 修改容器變數類型
     private LinearLayout layoutLogin;   // 未登入畫面
-    private ScrollView layoutProfile;   // 已登入畫面
+    private ScrollView layoutProfile;   // 已登入畫面 (改成 ScrollView)
 
     // 新增綁定
     private TextView btnLogoutIcon;
@@ -84,27 +84,31 @@ public class ProfileFragment extends Fragment {
 
         btnEmailLogin.setOnClickListener(v -> emailLogin());
 
-        // 4. 設定個性簽名點擊事件
+        // 4. 設定個性簽名點擊事件 (模擬編輯功能)
         tvBio.setOnClickListener(v -> {
             Toast.makeText(getContext(), "未來可在此編輯個性簽名", Toast.LENGTH_SHORT).show();
         });
 
-        // 修改登出按鈕事件
+        // 修改登出按鈕事件 (綁定到右上角圖示 或 設定按鈕)
         btnLogoutIcon.setOnClickListener(v -> signOut());
 
-        // 綁定去註冊頁面按鈕
+        // 在 onCreateView 裡綁定並設定監聽
         btnGoRegister = view.findViewById(R.id.btn_go_to_register);
+
         btnGoRegister.setOnClickListener(v -> {
             Intent intent = new Intent(getActivity(), RegisterActivity.class);
             startActivity(intent);
         });
 
         // 讓使用者點擊名字時，可以修改名字
-        tvName.setOnClickListener(v -> showEditNameDialog());
+        tvName.setOnClickListener(v -> {
+            showEditNameDialog();
+        });
 
-        // 設定按鈕也可以修改名字
-        btnSettings.setOnClickListener(v -> showEditNameDialog());
-
+        // 或者你也可以綁定在 settings 按鈕
+        btnSettings.setOnClickListener(v -> {
+            showEditNameDialog();
+        });
         return view;
     }
 
@@ -116,7 +120,7 @@ public class ProfileFragment extends Fragment {
         etPassword = view.findViewById(R.id.et_password);
         btnEmailLogin = view.findViewById(R.id.btn_email_login);
         btnGoogleSignIn = view.findViewById(R.id.sign_in_button);
-        btnGoogleSignIn.setSize(SignInButton.SIZE_WIDE);
+        btnGoogleSignIn.setSize(SignInButton.SIZE_WIDE); // 改成寬版按鈕比較好看
 
         // 綁定新的 Profile 介面元件
         ivProfile = view.findViewById(R.id.iv_profile_pic);
@@ -141,20 +145,19 @@ public class ProfileFragment extends Fragment {
         updateUI(account);
     }
 
-    // ★★★ 新增：RoboHash 載入頭像功能 (整合 Glide) ★★★
+    // ★ 2. 補回：載入 RoboHash 頭像的方法
     private void loadRoboAvatar(String key) {
         if (key == null || key.isEmpty()) return;
 
-        // 組合網址: 使用 email 或 user_id 當作 key，這樣頭像會固定
-        // set1 = 機器人, set2 = 怪獸, set4 = 貓咪
+        // 組合網址: set1=機器人, set2=怪獸, set4=貓咪
         String url = "https://robohash.org/" + key + ".png?set=set1";
 
-        // 確保 Fragment 還活著，避免 Crash
+        // 確保 Fragment 還活著
         if (isAdded() && getContext() != null) {
             Glide.with(this)
                     .load(url)
                     .circleCrop() // 自動切成圓形
-                    .placeholder(R.drawable.ic_launcher_background) // 載入中顯示的預設圖(可自行換成預設頭像資源)
+                    .placeholder(R.drawable.ic_launcher_background) // 預設圖
                     .into(ivProfile);
         }
     }
@@ -173,6 +176,7 @@ public class ProfileFragment extends Fragment {
         builder.setPositiveButton("確定", (dialog, which) -> {
             String newName = input.getText().toString().trim();
             if (!newName.isEmpty()) {
+                // 執行你原本想寫的 Server 請求
                 updateNameOnServer(newName);
             }
         });
@@ -184,7 +188,7 @@ public class ProfileFragment extends Fragment {
     }
 
     private void updateNameOnServer(String newName) {
-        SharedPreferences prefs = requireContext().getSharedPreferences("UserPrefs", android.content.Context.MODE_PRIVATE);
+        android.content.SharedPreferences prefs = requireContext().getSharedPreferences("UserPrefs", android.content.Context.MODE_PRIVATE);
         String userUuid = prefs.getString("user_id", null);
 
         if (userUuid == null) {
@@ -205,7 +209,7 @@ public class ProfileFragment extends Fragment {
                         tvName.setText(newName);
                         Toast.makeText(getContext(), "更名成功！", Toast.LENGTH_SHORT).show();
 
-                        // 更新 SharedPreferences
+                        // ★★★ 關鍵修正：必須更新 SharedPreferences ★★★
                         prefs.edit()
                                 .putString("username", newName)
                                 .apply();
@@ -220,9 +224,9 @@ public class ProfileFragment extends Fragment {
 
     // --- 功能實作區 ---
 
-    // ★ 修改：檢查 SharedPreferences 裡的紀錄並載入頭像
+    // 檢查 SharedPreferences 裡的紀錄
     private boolean checkLocalLogin() {
-        SharedPreferences prefs = requireContext().getSharedPreferences("UserPrefs", android.content.Context.MODE_PRIVATE);
+        android.content.SharedPreferences prefs = requireContext().getSharedPreferences("UserPrefs", android.content.Context.MODE_PRIVATE);
         String userId = prefs.getString("user_id", null);
         String userEmail = prefs.getString("user_email", "使用者");
         String userName = prefs.getString("username", "匿名");
@@ -236,7 +240,7 @@ public class ProfileFragment extends Fragment {
             tvEmail.setText(userEmail);
             tvBio.setText("歡迎回來！");
 
-            // ★ 呼叫 RoboHash 載入頭像
+            // ★ 3-1. 補回：載入頭像
             loadRoboAvatar(userEmail);
 
             return true;
@@ -244,33 +248,41 @@ public class ProfileFragment extends Fragment {
         return false;
     }
 
-    // Email 登入邏輯
+    // 1. Email 登入邏輯
     private void emailLogin() {
         String email = etEmail.getText().toString().trim();
         String password = etPassword.getText().toString().trim();
 
         if (email.isEmpty() || password.isEmpty()) return;
 
+        // 顯示登入中...
         Toast.makeText(getContext(), "登入驗證中...", Toast.LENGTH_SHORT).show();
 
         new Thread(() -> {
             TcpClient client = TcpClient.getInstance();
-            client.connect();
+            client.connect(); // 確保連線
 
+            // 1. 組合指令 LOGIN:帳號:密碼
             String command = "LOGIN:" + email + ":" + password;
+
+            // 2. 發送並等待結果
             String response = client.sendRequest(command);
 
+            // 3. 回到主執行緒處理 UI
             if (getActivity() != null) {
                 getActivity().runOnUiThread(() -> {
                     if (response != null && response.startsWith("LOGIN_SUCCESS")) {
-                        // 假設 Server 回傳： LOGIN_SUCCESS:userId:userName
+                        // 假設 Server 改成回傳： LOGIN_SUCCESS:userId:userName
                         String[] parts = response.split(":");
 
+                        // 確保拆分出來的長度足夠 (至少要有 ID)
                         if (parts.length >= 2) {
                             String userId = parts[1];
+                            // 嘗試取得名字，如果 Server 沒回傳名字，暫時先用 "使用者" 或 email 前綴
                             String userName = (parts.length >= 3) ? parts[2] : "使用者";
 
-                            SharedPreferences prefs = requireContext().getSharedPreferences("UserPrefs", android.content.Context.MODE_PRIVATE);
+                            // 存入 SharedPreferences
+                            android.content.SharedPreferences prefs = requireContext().getSharedPreferences("UserPrefs", android.content.Context.MODE_PRIVATE);
                             prefs.edit()
                                     .putString("user_id", userId)
                                     .putString("user_email", email)
@@ -286,7 +298,7 @@ public class ProfileFragment extends Fragment {
                             tvName.setText(userName);
                             tvEmail.setText(email);
 
-                            // ★ 登入成功後，立刻載入頭像
+                            // ★ 3-2. 補回：登入成功後載入頭像
                             loadRoboAvatar(email);
                         }
                     } else {
@@ -297,7 +309,7 @@ public class ProfileFragment extends Fragment {
         }).start();
     }
 
-    // Google 登入邏輯
+    // 2. Google 登入邏輯
     private void googleSignIn() {
         Intent signInIntent = mGoogleSignInClient.getSignInIntent();
         signInLauncher.launch(signInIntent);
@@ -306,7 +318,7 @@ public class ProfileFragment extends Fragment {
     private void handleGoogleSignInResult(Task<GoogleSignInAccount> completedTask) {
         try {
             GoogleSignInAccount account = completedTask.getResult(ApiException.class);
-            updateUI(account);
+            updateUI(account); // 登入成功
         } catch (ApiException e) {
             Log.w("GoogleSignIn", "signInResult:failed code=" + e.getStatusCode());
             updateUI(null);
@@ -314,38 +326,45 @@ public class ProfileFragment extends Fragment {
         }
     }
 
-    // 登出邏輯
+    // 3. 登出邏輯
     private void signOut() {
+        // 清除 SharedPreferences (本地登入紀錄)
         requireContext().getSharedPreferences("UserPrefs", android.content.Context.MODE_PRIVATE)
                 .edit()
                 .clear()
                 .apply();
 
+        // 如果是 Google 登入，需要呼叫 Google 的登出
         mGoogleSignInClient.signOut().addOnCompleteListener(requireActivity(), task -> {
+            // 清除 UI
             updateUI(null);
+
+            // 也要清空輸入框
             etEmail.setText("");
             etPassword.setText("");
 
-            // 清空頭像 (放回預設圖，避免顯示上一個人的緩存)
-            ivProfile.setImageResource(R.drawable.ic_launcher_background); // 這裡請換成你自己的預設圖資源
+            // ★ 4. 登出時清空頭像，避免顯示成上一個人的
+            ivProfile.setImageResource(R.drawable.ic_launcher_background);
 
             Toast.makeText(getContext(), "已登出", Toast.LENGTH_SHORT).show();
         });
     }
 
-    // UI 狀態切換 (含 Google 登入頭像處理)
+    // 4. UI 狀態切換 (核心邏輯)
     private void updateUI(GoogleSignInAccount account) {
         if (account != null) {
+            // === 已登入 (Google) ===
             layoutLogin.setVisibility(View.GONE);
             layoutProfile.setVisibility(View.VISIBLE);
 
             tvName.setText(account.getDisplayName());
             tvEmail.setText(account.getEmail());
 
-            // ★ Google 登入也使用 RoboHash (或者你要用 account.getPhotoUrl() 也可以)
+            // ★ 3-3. 補回：Google 登入也要載入頭像
             loadRoboAvatar(account.getEmail());
 
         } else {
+            // === 未登入 ===
             layoutLogin.setVisibility(View.VISIBLE);
             layoutProfile.setVisibility(View.GONE);
         }

@@ -1,21 +1,33 @@
 package com.example.eat_together;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button; // ★ 記得 import
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
+
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+
+// 匯入 Glide
+import com.bumptech.glide.Glide;
 
 public class FriendsAdapter extends RecyclerView.Adapter<FriendsAdapter.ViewHolder> {
 
     private List<Friend> friendList;
-    private String myUserId; // ★ 1. 新增：紀錄目前登入者的 ID
+    private String myUserId;
+    private Context context;
 
-    // ★ 2. 修改建構子：傳入資料來源 + 自己的 ID
+    // 定義儲存檔案的名稱
+    private static final String PREFS_NAME = "FriendRequestsPrefs";
+    private static final String KEY_SENT_REQUESTS = "sent_requests";
+
     public FriendsAdapter(List<Friend> friendList, String myUserId) {
         this.friendList = friendList;
         this.myUserId = myUserId;
@@ -24,8 +36,8 @@ public class FriendsAdapter extends RecyclerView.Adapter<FriendsAdapter.ViewHold
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(parent.getContext())
-                .inflate(R.layout.item_friend, parent, false);
+        this.context = parent.getContext();
+        View view = LayoutInflater.from(context).inflate(R.layout.item_friend, parent, false);
         return new ViewHolder(view);
     }
 
@@ -34,28 +46,73 @@ public class FriendsAdapter extends RecyclerView.Adapter<FriendsAdapter.ViewHold
         Friend friend = friendList.get(position);
         holder.tvName.setText(friend.getName());
         holder.tvStatus.setText(friend.getEmail());
-        holder.ivAvatar.setImageResource(friend.getImageResId());
 
-        // ★ 3. 設定按鈕點擊事件
-        holder.btnAdd.setOnClickListener(v -> {
-            // A. UI 立即反應 (變灰色、文字改成已加入，避免重複點擊)
+        // --- ★ 關鍵修改：統一使用「名字」產生頭像 ---
+        String seed = friend.getName();
+
+        // 防呆：如果名字是空的，才用 Email
+        if (seed == null || seed.isEmpty()) {
+            seed = friend.getEmail();
+        }
+        if (seed == null) seed = "default"; // 最終防呆
+
+        // 組合網址
+        String url = "https://robohash.org/" + seed + ".png?set=set1";
+
+        Glide.with(holder.itemView.getContext())
+                .load(url)
+                .circleCrop()
+                .placeholder(R.drawable.ic_launcher_background)
+                .into(holder.ivAvatar);
+
+        // --- 檢查按鈕狀態 (維持之前的邏輯) ---
+        if (checkIfRequestSent(friend.getId())) {
             holder.btnAdd.setText("已加入");
             holder.btnAdd.setEnabled(false);
-            holder.btnAdd.setBackgroundColor(0xFF888888); // 設定成灰色
+            holder.btnAdd.setBackgroundColor(0xFF888888);
+        } else {
+            holder.btnAdd.setText("加入");
+            holder.btnAdd.setEnabled(true);
+            // 如果你有預設顏色，可以在這裡還原
+            // holder.btnAdd.setBackgroundColor(...);
+        }
 
-            // B. 背景發送網路請求
+        // --- 點擊事件 ---
+        holder.btnAdd.setOnClickListener(v -> {
+            saveRequestSent(friend.getId());
+
+            holder.btnAdd.setText("已加入");
+            holder.btnAdd.setEnabled(false);
+            holder.btnAdd.setBackgroundColor(0xFF888888);
+
             sendAddFriendCommand(friend.getId());
         });
     }
 
-    // 輔助方法：發送指令給 Server
+    // --- 輔助方法 ---
+    private boolean checkIfRequestSent(String friendId) {
+        if (context == null || friendId == null) return false;
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        Set<String> sentRequests = prefs.getStringSet(KEY_SENT_REQUESTS, new HashSet<>());
+        return sentRequests.contains(friendId);
+    }
+
+    private void saveRequestSent(String friendId) {
+        if (context == null || friendId == null) return;
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        Set<String> oldSet = prefs.getStringSet(KEY_SENT_REQUESTS, new HashSet<>());
+        Set<String> newSet = new HashSet<>(oldSet);
+        newSet.add(friendId);
+        prefs.edit().putStringSet(KEY_SENT_REQUESTS, newSet).apply();
+    }
+
     private void sendAddFriendCommand(String targetFriendId) {
         new Thread(() -> {
-            // 確保雙方 ID 都存在
             if (myUserId != null && targetFriendId != null) {
-                // 指令格式: ADD_FRIEND:我的ID:對方ID
                 String cmd = "ADD_FRIEND:" + myUserId + ":" + targetFriendId;
-                TcpClient.getInstance().sendMessage(cmd);
+                if (TcpClient.getInstance() != null) {
+                    TcpClient.getInstance().sendMessage(cmd);
+                }
             }
         }).start();
     }
@@ -65,19 +122,16 @@ public class FriendsAdapter extends RecyclerView.Adapter<FriendsAdapter.ViewHold
         return friendList.size();
     }
 
-    // ViewHolder 類別
     public static class ViewHolder extends RecyclerView.ViewHolder {
         TextView tvName, tvStatus;
         ImageView ivAvatar;
-        Button btnAdd; // ★ 4. 新增按鈕元件
+        Button btnAdd;
 
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
             tvName = itemView.findViewById(R.id.tv_friend_name);
             tvStatus = itemView.findViewById(R.id.tv_friend_status);
-            ivAvatar = itemView.findViewById(R.id.iv_friend_avatar); // XML原本叫 iv_friend_avatar，請確認 ID 是否一致
-
-            // 綁定 XML 裡的按鈕 ID
+            ivAvatar = itemView.findViewById(R.id.iv_friend_avatar);
             btnAdd = itemView.findViewById(R.id.btn_add_friend);
         }
     }

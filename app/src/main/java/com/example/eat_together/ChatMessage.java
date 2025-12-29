@@ -1,45 +1,41 @@
 package com.example.eat_together;
 
 public class ChatMessage {
-    // 定義訊息類型常數
+
+    // --- 定義訊息類型常數 ---
+    // 0 = 自己發的 (右邊)
     public static final int TYPE_ME = 0;
+
+    // 1 = 對方發的 (左邊)
     public static final int TYPE_OTHER = 1;
-    public static final int TYPE_EVENT = 2; // ★ 新增：活動卡片類型
 
-    private String name;
-    private String content; // 如果是文字訊息，存內容；如果是活動，這欄位可以存 ID 或留空
-    private int type;
-    private String time;
+    // 2 = 活動邀請卡片 (置中顯示黃色卡片)
+    public static final int TYPE_EVENT = 2;
 
-    // ★ 新增：活動專用欄位
-    private String eventTitle;
-    private String eventTime;
-    private String eventId;
+    // --- 資料變數 ---
+    private String content;     // 訊息內容 (如果是活動，這裡會存 "ID,地點,時間")
+    private int type;           // 訊息類型 (0, 1, 或 2)
+    private String senderName;  // 發送者名字 (用來產生 RoboHash 頭像)
 
-    // 一般文字訊息的建構子
-    public ChatMessage(String name, String content, int type) {
-        this.name = name;
+    // --- 建構子 (Constructor) ---
+    // 注意參數順序：內容 -> 類型 -> 名字
+    public ChatMessage(String content, int type, String senderName) {
         this.content = content;
         this.type = type;
+        this.senderName = senderName;
     }
 
-    // ★ 新增：活動訊息的建構子
-    public ChatMessage(String eventId, String title, String time) {
-        this.type = TYPE_EVENT;
-        this.eventId = eventId;
-        this.eventTitle = title;
-        this.eventTime = time;
-        this.name = "系統通知"; // 活動通常顯示為系統通知
+    // --- Getter 方法 (讓 Adapter 讀取資料) ---
+
+    public String getContent() {
+        return content;
     }
 
-    // Getters and Setters
-    public String getName() { return name; }
-    public String getContent() { return content; }
-    public int getType() { return type; }
-    public void setSenderName(String name) { this.name = name; }
-    public void setTime(String time) { this.time = time; }
+    public int getType() {
+        return type;
+    }
 
-    public String getEventTitle() { return eventTitle; }
-    public String getEventTime() { return eventTime; }
-    public String getEventId() { return eventId; }
+    public String getSenderName() {
+        return senderName;
+    }
 }

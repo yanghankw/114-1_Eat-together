@@ -11,6 +11,9 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 import java.util.List;
 
+// 匯入 Glide
+import com.bumptech.glide.Glide;
+
 public class ChatsAdapter extends RecyclerView.Adapter<ChatsAdapter.ViewHolder> {
 
     private List<ChatSession> chatList;
@@ -31,26 +34,35 @@ public class ChatsAdapter extends RecyclerView.Adapter<ChatsAdapter.ViewHolder> 
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         ChatSession session = chatList.get(position);
+
         holder.tvName.setText(session.getName());
         holder.tvLastMsg.setText(session.getLastMessage());
         holder.tvTime.setText(session.getTime());
-        holder.ivAvatar.setImageResource(session.getAvatarResId());
 
+        // --- ★ 關鍵修改：統一使用「名字」產生頭像 ---
+        // 原本是用 ID，現在改成 Name，這樣跟好友列表才會一樣
+        String seed = session.getName();
 
+        if (seed == null || seed.isEmpty()) {
+            seed = "default_user";
+        }
+
+        // 組合網址
+        String url = "https://robohash.org/" + seed + ".png?set=set1";
+
+        Glide.with(context)
+                .load(url)
+                .circleCrop()
+                .placeholder(R.drawable.ic_launcher_background)
+                .error(R.drawable.ic_launcher_background) // 載入失敗時顯示
+                .into(holder.ivAvatar);
+
+        // 點擊事件
         holder.itemView.setOnClickListener(v -> {
-            Context context = holder.itemView.getContext();
             Intent intent = new Intent(context, ChatActivity.class);
-
-            // 1. 傳遞 ID (群組ID 或 好友ID)
-            intent.putExtra("TARGET_ID", session.getId());
-
-            // 2. 傳遞名字 (標題用)
-            intent.putExtra("TARGET_NAME", session.getName());
-
-            // 3. ★★★ 最重要：一定要傳遞聊天類型 (GROUP 或 PRIVATE) ★★★
-            // 如果漏了這行，ChatActivity 就會以為是私聊，然後拿群組ID(1)去查UUID欄位，導致崩潰
+            intent.putExtra("FRIEND_ID", session.getId());
+            intent.putExtra("FRIEND_NAME", session.getName());
             intent.putExtra("CHAT_TYPE", session.getType());
-
             context.startActivity(intent);
         });
     }
