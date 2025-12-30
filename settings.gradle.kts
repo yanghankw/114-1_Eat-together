@@ -21,3 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Eat-together"
 include(":app")
+include(":server")

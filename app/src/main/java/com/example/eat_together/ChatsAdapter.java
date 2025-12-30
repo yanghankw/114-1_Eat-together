@@ -14,7 +14,7 @@ import java.util.List;
 public class ChatsAdapter extends RecyclerView.Adapter<ChatsAdapter.ViewHolder> {
 
     private List<ChatSession> chatList;
-    private Context context; // 需要 Context 來啟動 Activity
+    private Context context;
 
     public ChatsAdapter(Context context, List<ChatSession> chatList) {
         this.context = context;
@@ -36,10 +36,21 @@ public class ChatsAdapter extends RecyclerView.Adapter<ChatsAdapter.ViewHolder> 
         holder.tvTime.setText(session.getTime());
         holder.ivAvatar.setImageResource(session.getAvatarResId());
 
-        // 設定點擊事件：跳轉到 ChatActivity
+
         holder.itemView.setOnClickListener(v -> {
+            Context context = holder.itemView.getContext();
             Intent intent = new Intent(context, ChatActivity.class);
-            intent.putExtra("CHAT_NAME", session.getName()); // 把名字傳過去
+
+            // 1. 傳遞 ID (群組ID 或 好友ID)
+            intent.putExtra("TARGET_ID", session.getId());
+
+            // 2. 傳遞名字 (標題用)
+            intent.putExtra("TARGET_NAME", session.getName());
+
+            // 3. ★★★ 最重要：一定要傳遞聊天類型 (GROUP 或 PRIVATE) ★★★
+            // 如果漏了這行，ChatActivity 就會以為是私聊，然後拿群組ID(1)去查UUID欄位，導致崩潰
+            intent.putExtra("CHAT_TYPE", session.getType());
+
             context.startActivity(intent);
         });
     }
